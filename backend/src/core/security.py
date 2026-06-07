@@ -1,16 +1,20 @@
 """
 ═══════════════════════════════════════════════════════════════
   Security — JWT Verification & Auth Dependencies
-  Verifies Supabase-issued JWTs and provides current user.
+  Verifies Supabase-issued JWTs (ES256 or HS256) and provides current user.
 ═══════════════════════════════════════════════════════════════
 """
 
+import json
 from datetime import datetime, timezone
+from functools import lru_cache
 from typing import Annotated
 
+import httpx
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+from jose import JWTError, jwk, jwt
+from jose.utils import base64url_decode
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +23,57 @@ from src.core.database import get_db
 from src.modules.users.models import Profile
 
 security_scheme = HTTPBearer(auto_error=False)
+
+
+@lru_cache(maxsize=1)
+def _fetch_jwks() -> dict:
+    """Fetch and cache the JWKS from Supabase Auth."""
+    jwks_url = f"{settings.supabase_url}/auth/v1/.well-known/jwks.json"
+    try:
+        response = httpx.get(jwks_url, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print(f"⚠️ Failed to fetch JWKS from {jwks_url}: {e}")
+        return {"keys": []}
+
+
+def _verify_token(token: str) -> dict:
+    """
+    Verify a JWT token using Supabase JWKS (ES256) or fallback to HS256.
+    """
+    # Try ES256 with JWKS first
+    jwks = _fetch_jwks()
+    if jwks.get("keys"):
+        # Get the header to find the kid
+        try:
+            unverified_header = jwt.get_unverified_header(token)
+        except JWTError as e:
+            raise JWTError(f"Header inválido: {e}") from e
+
+        # Find the matching key
+        kid = unverified_header.get("kid")
+        alg = unverified_header.get("alg", "ES256")
+
+        for key_data in jwks["keys"]:
+            if key_data.get("kid") == kid:
+                # Build the public key and verify
+                public_key = jwk.construct(key_data, algorithm=alg)
+                return jwt.decode(
+                    token,
+                    public_key,
+                    algorithms=[alg],
+                    options={"verify_aud": False},
+                )
+
+    # Fallback to HS256 with secret
+    jwt_secret = settings.supabase_jwt_secret or settings.api_secret_key
+    return jwt.decode(
+        token,
+        jwt_secret,
+        algorithms=["HS256"],
+        options={"verify_aud": False},
+    )
 
 
 async def get_current_user(
@@ -39,16 +94,7 @@ async def get_current_user(
     token = credentials.credentials
 
     try:
-        # Use Supabase JWT secret to verify tokens issued by Supabase Auth.
-        # Falls back to api_secret_key for locally-issued tokens.
-        jwt_secret = settings.supabase_jwt_secret or settings.api_secret_key
-
-        payload = jwt.decode(
-            token,
-            jwt_secret,
-            algorithms=[settings.jwt_algorithm],
-            options={"verify_aud": False},
-        )
+        payload = _verify_token(token)
 
         user_id: str | None = payload.get("sub")
         if user_id is None:
