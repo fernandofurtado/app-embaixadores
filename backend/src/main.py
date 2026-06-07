@@ -5,10 +5,12 @@
 ═══════════════════════════════════════════════════════════════
 """
 
+import traceback
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from src.core.config import settings
 from src.modules.auth.router import router as auth_router
@@ -58,6 +60,22 @@ app.include_router(events_router, prefix="/api/v1/events", tags=["Events"])
 app.include_router(content_router, prefix="/api/v1/content", tags=["Content"])
 app.include_router(notifications_router, prefix="/api/v1/notifications", tags=["Notifications"])
 app.include_router(admin_router, prefix="/api/v1/admin", tags=["Admin"])
+
+
+# ═══ GLOBAL EXCEPTION HANDLER ═══
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Return detailed error info instead of generic 500."""
+    tb = traceback.format_exc()
+    print(f"❌ Unhandled exception on {request.method} {request.url}:\n{tb}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": str(exc),
+            "type": type(exc).__name__,
+            "path": str(request.url.path),
+        },
+    )
 
 
 @app.get("/", tags=["Health"])
