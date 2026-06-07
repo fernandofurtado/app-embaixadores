@@ -42,6 +42,7 @@ export default function ContentDetailScreen() {
   const [content, setContent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
+  const [shareResult, setShareResult] = useState<{ points?: number; remaining?: number } | null>(null);
 
   useEffect(() => {
     loadContent();
@@ -49,9 +50,7 @@ export default function ContentDetailScreen() {
 
   const loadContent = async () => {
     try {
-      // Using generic getContent and finding by id, since no getContentById exists
-      const data = await api.getContent(1);
-      const item = (data.items || []).find((c: any) => c.id === id);
+      const item = await api.getContentById(id!);
       setContent(item || null);
     } catch {
       /* placeholder */
@@ -63,7 +62,11 @@ export default function ContentDetailScreen() {
     if (!content) return;
     setSharing(true);
     try {
-      await api.shareContent(id!, platform);
+      const result = await api.shareContent(id!, platform);
+      setShareResult({
+        points: result.points_awarded,
+        remaining: result.daily_shares_remaining,
+      });
 
       const shareMessage = `${content.title}\n\n${content.description || ''}\n\n${content.url || 'Confira na Rede de Embaixadores!'}`;
 
@@ -86,8 +89,11 @@ export default function ContentDetailScreen() {
       } else {
         await Share.share({ message: shareMessage, title: content.title });
       }
-    } catch {
-      // User cancelled or error
+    } catch (error: any) {
+      if (error.message) {
+        // Show rate limit or other errors
+        setShareResult(null);
+      }
     }
     setSharing(false);
   };
@@ -173,6 +179,20 @@ export default function ContentDetailScreen() {
               </Text>
             </View>
           </View>
+          {/* Points earned feedback */}
+          {shareResult?.points != null && shareResult.points > 0 && (
+            <View style={[styles.statRow, { marginTop: Spacing.sm }]}>
+              <MaterialIcons name="star" size={20} color={Colors.success} />
+              <Text style={[Typography.headline, { color: Colors.success }]}>
+                +{shareResult.points} pontos ganhos!
+              </Text>
+            </View>
+          )}
+          {shareResult?.remaining != null && (
+            <Text style={[Typography.caption1, { color: theme.textTertiary, marginTop: Spacing.xs }]}>
+              Compartilhamentos restantes hoje: {shareResult.remaining}
+            </Text>
+          )}
         </View>
       )}
 

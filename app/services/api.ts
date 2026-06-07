@@ -1,14 +1,44 @@
 /**
  * ═══════════════════════════════════════════════════════════════
  *  API Service — HTTP client for the backend
+ *  All endpoints typed — no `any` types
  * ═══════════════════════════════════════════════════════════════
  */
+
+import type {
+  AuthResponse,
+  Badge,
+  CheckinData,
+  CheckinResult,
+  Consent,
+  Content,
+  Event,
+  InviteCreate,
+  InviteTracking,
+  Invitation,
+  LeaderboardEntry,
+  Level,
+  Mission,
+  MissionCategory,
+  MissionSubmitResult,
+  Notification,
+  PaginatedResponse,
+  PointTransaction,
+  Region,
+  RegisterData,
+  ShareResult,
+  UnreadCount,
+  User,
+  UserMission,
+  UserRank,
+  UserStats,
+} from './types';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface ApiOptions {
   method?: string;
-  body?: any;
+  body?: unknown;
   token?: string | null;
 }
 
@@ -56,15 +86,15 @@ class ApiService {
   }
 
   // ═══ AUTH ═══
-  async register(data: { full_name: string; email: string; password: string; phone?: string; referral_code?: string }) {
-    return this.request<{ access_token: string; refresh_token: string; user_id: string }>('/api/v1/auth/register', {
+  async register(data: RegisterData) {
+    return this.request<AuthResponse>('/api/v1/auth/register', {
       method: 'POST',
       body: data,
     });
   }
 
   async login(email: string, password: string) {
-    return this.request<{ access_token: string; refresh_token: string; user_id: string }>('/api/v1/auth/login', {
+    return this.request<AuthResponse>('/api/v1/auth/login', {
       method: 'POST',
       body: { email, password },
     });
@@ -79,34 +109,68 @@ class ApiService {
 
   // ═══ USERS ═══
   async getMyProfile() {
-    return this.request<any>('/api/v1/users/me');
+    return this.request<User>('/api/v1/users/me');
   }
 
-  async updateProfile(data: any) {
-    return this.request<any>('/api/v1/users/me', { method: 'PATCH', body: data });
+  async updateProfile(data: Partial<User>) {
+    return this.request<User>('/api/v1/users/me', { method: 'PATCH', body: data });
   }
 
   async getLevels() {
-    return this.request<any[]>('/api/v1/users/levels/all');
+    return this.request<Level[]>('/api/v1/users/levels/all');
   }
 
   async getRegions() {
-    return this.request<any[]>('/api/v1/users/regions/all');
+    return this.request<Region[]>('/api/v1/users/regions/all');
   }
 
   async generateReferralCode() {
     return this.request<{ referral_code: string }>('/api/v1/users/me/referral-code', { method: 'POST' });
   }
 
+  // ═══ CONSENTS (LGPD §8.1) ═══
+  async getMyConsents() {
+    return this.request<Consent[]>('/api/v1/users/me/consents');
+  }
+
+  async grantConsent(consent_type: string, accepted: boolean) {
+    return this.request<Consent>('/api/v1/users/me/consents', {
+      method: 'POST',
+      body: { consent_type, accepted },
+    });
+  }
+
+  async revokeConsent(consentType: string) {
+    return this.request<{ message: string }>(`/api/v1/users/me/consents/${consentType}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ═══ DELETE ACCOUNT (LGPD §8.1) ═══
+  async deleteAccount() {
+    return this.request<{ message: string }>('/api/v1/users/me/account', {
+      method: 'DELETE',
+    });
+  }
+
   // ═══ GAMIFICATION ═══
   async getMyStats() {
-    return this.request<any>('/api/v1/gamification/my-stats');
+    return this.request<UserStats>('/api/v1/gamification/my-stats');
   }
 
   async getLeaderboard(limit = 50, regionId?: string) {
     const params = new URLSearchParams({ limit: limit.toString() });
     if (regionId) params.set('region_id', regionId);
-    return this.request<any[]>(`/api/v1/gamification/leaderboard?${params}`);
+    return this.request<LeaderboardEntry[]>(`/api/v1/gamification/leaderboard?${params}`);
+  }
+
+  async getMyRank() {
+    return this.request<UserRank>('/api/v1/gamification/my-rank');
+  }
+
+  async getPointsHistory(limit = 50, offset = 0) {
+    const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
+    return this.request<PointTransaction[]>(`/api/v1/gamification/points-history?${params}`);
   }
 
   // ═══ MISSIONS ═══
@@ -114,73 +178,103 @@ class ApiService {
     const params = new URLSearchParams({ page: page.toString() });
     if (categoryId) params.set('category_id', categoryId);
     if (featured !== undefined) params.set('is_featured', featured.toString());
-    return this.request<any>(`/api/v1/missions?${params}`);
+    return this.request<PaginatedResponse<Mission>>(`/api/v1/missions?${params}`);
   }
 
   async getMission(id: string) {
-    return this.request<any>(`/api/v1/missions/${id}`);
+    return this.request<Mission>(`/api/v1/missions/${id}`);
   }
 
   async getMyMissions() {
-    return this.request<any[]>('/api/v1/missions/my-missions');
+    return this.request<UserMission[]>('/api/v1/missions/my-missions');
   }
 
   async startMission(id: string) {
-    return this.request<any>(`/api/v1/missions/${id}/start`, { method: 'POST' });
+    return this.request<UserMission>(`/api/v1/missions/${id}/start`, { method: 'POST' });
   }
 
   async submitMission(id: string, evidenceUrl?: string) {
-    return this.request<any>(`/api/v1/missions/${id}/submit`, {
+    return this.request<MissionSubmitResult>(`/api/v1/missions/${id}/submit`, {
       method: 'POST',
       body: { evidence_url: evidenceUrl },
     });
   }
 
   async getMissionCategories() {
-    return this.request<any[]>('/api/v1/missions/categories');
+    return this.request<MissionCategory[]>('/api/v1/missions/categories');
   }
 
   // ═══ EVENTS ═══
-  async getEvents(page = 1, eventType?: string) {
+  async getEvents(page = 1, eventType?: string, regionId?: string) {
     const params = new URLSearchParams({ page: page.toString() });
     if (eventType) params.set('event_type', eventType);
-    return this.request<any>(`/api/v1/events?${params}`);
+    if (regionId) params.set('region_id', regionId);
+    return this.request<PaginatedResponse<Event>>(`/api/v1/events?${params}`);
   }
 
   async getEvent(id: string) {
-    return this.request<any>(`/api/v1/events/${id}`);
+    return this.request<Event>(`/api/v1/events/${id}`);
   }
 
   async registerForEvent(id: string) {
-    return this.request<any>(`/api/v1/events/${id}/register`, { method: 'POST' });
+    return this.request<{ message: string; participant_id: string }>(`/api/v1/events/${id}/register`, { method: 'POST' });
   }
 
-  async checkinEvent(id: string) {
-    return this.request<any>(`/api/v1/events/${id}/checkin`, { method: 'POST' });
+  async checkinEvent(id: string, data: CheckinData) {
+    return this.request<CheckinResult>(`/api/v1/events/${id}/checkin`, {
+      method: 'POST',
+      body: data,
+    });
   }
 
   // ═══ CONTENT ═══
   async getContent(page = 1, contentType?: string) {
     const params = new URLSearchParams({ page: page.toString() });
     if (contentType) params.set('content_type', contentType);
-    return this.request<any>(`/api/v1/content?${params}`);
+    return this.request<PaginatedResponse<Content>>(`/api/v1/content?${params}`);
+  }
+
+  async getContentById(id: string) {
+    return this.request<Content>(`/api/v1/content/${id}`);
   }
 
   async shareContent(id: string, platform = 'whatsapp') {
-    return this.request<any>(`/api/v1/content/${id}/share?platform=${platform}`, { method: 'POST' });
+    return this.request<ShareResult>(`/api/v1/content/${id}/share?platform=${platform}`, { method: 'POST' });
+  }
+
+  // ═══ INVITATIONS ═══
+  async createInvitation(data: InviteCreate) {
+    return this.request<Invitation>('/api/v1/invitations', {
+      method: 'POST',
+      body: data,
+    });
+  }
+
+  async getMyInvitations() {
+    return this.request<InviteTracking>('/api/v1/invitations/my');
+  }
+
+  async validateInvitation(inviteCode: string) {
+    return this.request<{ message: string }>(`/api/v1/invitations/${inviteCode}/validate`, {
+      method: 'POST',
+    });
   }
 
   // ═══ NOTIFICATIONS ═══
   async getNotifications(unreadOnly = false) {
-    return this.request<any[]>(`/api/v1/notifications?unread_only=${unreadOnly}`);
+    return this.request<Notification[]>(`/api/v1/notifications?unread_only=${unreadOnly}`);
+  }
+
+  async getUnreadCount() {
+    return this.request<UnreadCount>('/api/v1/notifications/unread-count');
   }
 
   async markNotificationRead(id: string) {
-    return this.request<any>(`/api/v1/notifications/${id}/read`, { method: 'PATCH' });
+    return this.request<Notification>(`/api/v1/notifications/${id}/read`, { method: 'PATCH' });
   }
 
   async markAllNotificationsRead() {
-    return this.request<any>('/api/v1/notifications/read-all', { method: 'PATCH' });
+    return this.request<{ message: string }>('/api/v1/notifications/read-all', { method: 'PATCH' });
   }
 }
 

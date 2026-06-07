@@ -1,6 +1,7 @@
 /**
  * ═══════════════════════════════════════════════════════════════
- *  Missions Screen — Browse and track missions
+ *  Missions Screen — Browse and track with status tabs
+ *  PRD §4.2: AVAILABLE→IN_PROGRESS→SUBMITTED→COMPLETED/REJECTED
  * ═══════════════════════════════════════════════════════════════
  */
 
@@ -19,7 +20,28 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../constants/theme';
-import api from '../../services/api';
+import { useMissionStore } from '../../stores/missionStore';
+import type { Mission, UserMission, UserMissionStatus } from '../../services/types';
+
+type IconName = React.ComponentProps<typeof MaterialIcons>['name'];
+
+const STATUS_META: Record<string, { color: string; icon: IconName; label: string }> = {
+  AVAILABLE: { color: Colors.primary, icon: 'play-circle-outline', label: 'Disponível' },
+  IN_PROGRESS: { color: Colors.warning, icon: 'hourglass-top', label: 'Em Progresso' },
+  SUBMITTED: { color: Colors.info, icon: 'pending', label: 'Enviada' },
+  VALIDATED: { color: Colors.success, icon: 'verified', label: 'Validada' },
+  REJECTED: { color: Colors.danger, icon: 'cancel', label: 'Rejeitada' },
+  COMPLETED: { color: Colors.success, icon: 'check-circle', label: 'Concluída' },
+};
+
+const RECURRENCE_LABELS: Record<string, string> = {
+  ONE_TIME: 'Única',
+  DAILY: 'Diária',
+  WEEKLY: 'Semanal',
+  PER_EVENT: 'Por Evento',
+};
+
+type TabKey = 'available' | 'in_progress' | 'completed';
 
 export default function MissionsScreen() {
   const colorScheme = useColorScheme();
@@ -28,137 +50,298 @@ export default function MissionsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const [categories, setCategories] = useState<any[]>([]);
-  const [missions, setMissions] = useState<any[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const {
+    missions,
+    categories,
+    myMissions,
+    selectedCategory,
+    isLoadingMissions,
+    loadMissions,
+    loadCategories,
+    loadMyMissions,
+    setSelectedCategory,
+  } = useMissionStore();
 
-  const loadData = async () => {
-    try {
-      const [cats, missionsData] = await Promise.all([
-        api.getMissionCategories(),
-        api.getMissions(1, selectedCategory || undefined),
-      ]);
-      setCategories(cats || []);
-      setMissions(missionsData.items || []);
-    } catch {
-      // placeholder
-    }
-  };
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabKey>('available');
 
   useEffect(() => {
-    loadData();
+    loadCategories();
+    loadMissions(1, selectedCategory || undefined);
+    loadMyMissions();
   }, [selectedCategory]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await Promise.all([
+      loadMissions(1, selectedCategory || undefined),
+      loadMyMissions(),
+    ]);
     setRefreshing(false);
+  };
+
+  // Group my missions by status
+  const inProgressMissions = myMissions.filter(
+    (m) => ['IN_PROGRESS', 'SUBMITTED'].includes(m.status)
+  );
+  const completedMissions = myMissions.filter(
+    (m) => ['COMPLETED', 'VALIDATED', 'REJECTED'].includes(m.status)
+  );
+
+  const tabs: { key: TabKey; label: string; count: number }[] = [
+    { key: 'available', label: 'Disponíveis', count: missions.length },
+    { key: 'in_progress', label: 'Em Progresso', count: inProgressMissions.length },
+    { key: 'completed', label: 'Concluídas', count: completedMissions.length },
+  ];
+
+  const renderMissionCard = (mission: Mission) => {
+    const recurrenceLabel = RECURRENCE_LABELS[mission.recurrence] || mission.recurrence;
+    const isRecurring = mission.recurrence !== 'ONE_TIME';
+
+    return (
+      <Pressable
+        key={mission.id}
+        style={({ pressed }) => [
+          styles.missionCard,
+          { backgroundColor: theme.surface, opacity: pressed ? 0.9 : 1 },
+          Shadows.sm,
+        ]}
+        onPress={() => router.push(`/mission/${mission.id}`)}
+      >
+        {mission.is_featured && (
+          <View style={[styles.featuredBadge, { backgroundColor: Colors.warning + '20' }]}>
+            <Text style={[Typography.caption2, { color: Colors.warning, fontWeight: '700' }]}><MaterialIcons name="star" size={10} /> DESTAQUE</Text>
+          </View>
+        )}
+        <Text style={[Typography.headline, { color: theme.text }]}>{mission.title}</Text>
+        <Text style={[Typography.subhead, { color: theme.textSecondary, marginTop: Spacing.xs }]} numberOfLines={2}>
+          {mission.description}
+        </Text>
+        <View style={styles.missionMeta}>
+          <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+            <View style={[styles.typeBadge, { backgroundColor: theme.surfaceElevated }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <MaterialIcons name={isRecurring ? 'loop' : 'check-circle'} size={12} color={theme.textSecondary} />
+                <Text style={[Typography.caption2, { color: theme.textSecondary }]}>
+                  {recurrenceLabel}
+                </Text>
+              </View>
+            </View>
+            {isRecurring && (
+              <View style={[styles.recurrenceBadge, { backgroundColor: Colors.themes.youth + '15' }]}>
+                <Text style={[Typography.caption2, { color: Colors.themes.youth, fontWeight: '600' }]}>
+                  {recurrenceLabel}
+                </Text>
+              </View>
+            )}
+          </View>
+          <View style={[styles.pointsBadge, { backgroundColor: Colors.success + '15' }]}>
+            <Text style={[Typography.subhead, { color: Colors.success, fontWeight: '700' }]}>
+              +{mission.points_reward} pts
+            </Text>
+          </View>
+        </View>
+      </Pressable>
+    );
+  };
+
+  const renderUserMissionCard = (um: UserMission) => {
+    const statusMeta = STATUS_META[um.status] || STATUS_META.AVAILABLE;
+
+    return (
+      <Pressable
+        key={um.id}
+        style={({ pressed }) => [
+          styles.missionCard,
+          { backgroundColor: theme.surface, opacity: pressed ? 0.9 : 1, borderLeftWidth: 3, borderLeftColor: statusMeta.color },
+          Shadows.sm,
+        ]}
+        onPress={() => router.push(`/mission/${um.mission_id}`)}
+      >
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={[Typography.headline, { color: theme.text, flex: 1 }]}>{um.mission?.title || 'Missão'}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: statusMeta.color + '15' }]}>
+            <MaterialIcons name={statusMeta.icon} size={12} color={statusMeta.color} />
+            <Text style={[Typography.caption2, { color: statusMeta.color, fontWeight: '600' }]}>
+              {statusMeta.label}
+            </Text>
+          </View>
+        </View>
+        {um.rejected_reason && (
+          <View style={[styles.rejectedBanner, { backgroundColor: Colors.danger + '10' }]}>
+            <MaterialIcons name="info" size={14} color={Colors.danger} />
+            <Text style={[Typography.caption1, { color: Colors.danger }]}>{um.rejected_reason}</Text>
+          </View>
+        )}
+        <View style={styles.missionMeta}>
+          <Text style={[Typography.caption1, { color: theme.textTertiary }]}>
+            Progresso: {um.current_count}/{um.mission?.required_count || 1}
+          </Text>
+          <View style={[styles.pointsBadge, { backgroundColor: Colors.success + '15' }]}>
+            <Text style={[Typography.subhead, { color: Colors.success, fontWeight: '700' }]}>
+              +{um.mission?.points_reward || 0} pts
+            </Text>
+          </View>
+        </View>
+      </Pressable>
+    );
+  };
+
+  const getListData = () => {
+    switch (activeTab) {
+      case 'in_progress': return inProgressMissions;
+      case 'completed': return completedMissions;
+      default: return [];
+    }
   };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* ═══ CATEGORY FILTER ═══ */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={[styles.categoriesContainer, { paddingTop: insets.top + 100 }]}
-        contentContainerStyle={styles.categoriesContent}
-      >
-        <Pressable
-          style={[
-            styles.categoryChip,
-            !selectedCategory && styles.categoryChipActive,
-            { borderColor: theme.border },
-          ]}
-          onPress={() => setSelectedCategory(null)}
-        >
-          <Text style={[
-            Typography.subhead,
-            { color: !selectedCategory ? '#fff' : theme.text, fontWeight: '600' },
-          ]}>
-            Todas
-          </Text>
-        </Pressable>
-        {categories.map((cat) => (
+      {/* ═══ TABS ═══ */}
+      <View style={[styles.tabsContainer, { paddingTop: insets.top + 100 }]}>
+        {tabs.map((tab) => (
           <Pressable
-            key={cat.id}
+            key={tab.key}
             style={[
-              styles.categoryChip,
-              selectedCategory === cat.id && styles.categoryChipActive,
-              { borderColor: theme.border },
+              styles.tab,
+              activeTab === tab.key && styles.tabActive,
             ]}
-            onPress={() => setSelectedCategory(cat.id === selectedCategory ? null : cat.id)}
+            onPress={() => setActiveTab(tab.key)}
           >
-            <Text style={{ fontSize: 14 }}>{cat.icon}</Text>
             <Text style={[
               Typography.subhead,
-              { color: selectedCategory === cat.id ? '#fff' : theme.text, fontWeight: '500' },
+              { color: activeTab === tab.key ? Colors.primary : theme.textSecondary, fontWeight: '600' },
             ]}>
-              {cat.name}
+              {tab.label}
             </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
-      {/* ═══ MISSIONS LIST ═══ */}
-      <FlatList
-        data={missions}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: Spacing.base, paddingBottom: 120 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
-        renderItem={({ item }) => (
-          <Pressable
-            style={({ pressed }) => [
-              styles.missionCard,
-              { backgroundColor: theme.surface, opacity: pressed ? 0.9 : 1 },
-              Shadows.sm,
-            ]}
-            onPress={() => router.push(`/mission/${item.id}`)}
-          >
-            {item.is_featured && (
-              <View style={[styles.featuredBadge, { backgroundColor: Colors.warning + '20' }]}>
-                <Text style={[Typography.caption2, { color: Colors.warning, fontWeight: '700' }]}><MaterialIcons name="star" size={10} /> DESTAQUE</Text>
-              </View>
-            )}
-            <Text style={[Typography.headline, { color: theme.text }]}>{item.title}</Text>
-            <Text style={[Typography.subhead, { color: theme.textSecondary, marginTop: Spacing.xs }]} numberOfLines={2}>
-              {item.description}
-            </Text>
-            <View style={styles.missionMeta}>
-              <View style={[styles.typeBadge, { backgroundColor: theme.surfaceElevated }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <MaterialIcons name={item.mission_type === 'recurring' ? 'loop' : 'check-circle'} size={12} color={theme.textSecondary} />
-                  <Text style={[Typography.caption2, { color: theme.textSecondary }]}>
-                    {item.mission_type === 'recurring' ? 'Recorrente' : 'Única'}
-                  </Text>
-                </View>
-              </View>
-              <View style={[styles.pointsBadge, { backgroundColor: Colors.success + '15' }]}>
-                <Text style={[Typography.subhead, { color: Colors.success, fontWeight: '700' }]}>
-                  +{item.points_reward} pts
+            {tab.count > 0 && (
+              <View style={[styles.tabBadge, { backgroundColor: activeTab === tab.key ? Colors.primary : theme.surfaceElevated }]}>
+                <Text style={[Typography.caption2, { color: activeTab === tab.key ? '#fff' : theme.textSecondary, fontWeight: '700' }]}>
+                  {tab.count}
                 </Text>
               </View>
-            </View>
+            )}
           </Pressable>
-        )}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <MaterialIcons name="flag" size={64} color={theme.textTertiary} />
-            <Text style={[Typography.title3, { color: theme.text }]}>Nenhuma missão encontrada</Text>
-            <Text style={[Typography.subhead, { color: theme.textSecondary, textAlign: 'center' }]}>
-              Novas missões serão adicionadas em breve!
+        ))}
+      </View>
+
+      {/* ═══ CATEGORY FILTER (only for available tab) ═══ */}
+      {activeTab === 'available' && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.categoriesContainer}
+          contentContainerStyle={styles.categoriesContent}
+        >
+          <Pressable
+            style={[
+              styles.categoryChip,
+              !selectedCategory && styles.categoryChipActive,
+              { borderColor: theme.border },
+            ]}
+            onPress={() => setSelectedCategory(null)}
+          >
+            <Text style={[
+              Typography.subhead,
+              { color: !selectedCategory ? '#fff' : theme.text, fontWeight: '600' },
+            ]}>
+              Todas
             </Text>
-          </View>
-        }
-      />
+          </Pressable>
+          {categories.map((cat) => (
+            <Pressable
+              key={cat.id}
+              style={[
+                styles.categoryChip,
+                selectedCategory === cat.id && styles.categoryChipActive,
+                { borderColor: theme.border },
+              ]}
+              onPress={() => setSelectedCategory(cat.id === selectedCategory ? null : cat.id)}
+            >
+              <Text style={{ fontSize: 14 }}>{cat.icon}</Text>
+              <Text style={[
+                Typography.subhead,
+                { color: selectedCategory === cat.id ? '#fff' : theme.text, fontWeight: '500' },
+              ]}>
+                {cat.name}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* ═══ CONTENT ═══ */}
+      {activeTab === 'available' ? (
+        <FlatList
+          data={missions}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ padding: Spacing.base, paddingBottom: 120 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+          renderItem={({ item }) => renderMissionCard(item)}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <MaterialIcons name="flag" size={64} color={theme.textTertiary} />
+              <Text style={[Typography.title3, { color: theme.text }]}>Nenhuma missão encontrada</Text>
+              <Text style={[Typography.subhead, { color: theme.textSecondary, textAlign: 'center' }]}>
+                Novas missões serão adicionadas em breve!
+              </Text>
+            </View>
+          }
+        />
+      ) : (
+        <FlatList
+          data={getListData()}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ padding: Spacing.base, paddingBottom: 120 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+          renderItem={({ item }) => renderUserMissionCard(item)}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <MaterialIcons name={activeTab === 'in_progress' ? 'hourglass-empty' : 'check-circle-outline'} size={64} color={theme.textTertiary} />
+              <Text style={[Typography.title3, { color: theme.text }]}>
+                {activeTab === 'in_progress' ? 'Nenhuma missão em progresso' : 'Nenhuma missão concluída'}
+              </Text>
+              <Text style={[Typography.subhead, { color: theme.textSecondary, textAlign: 'center' }]}>
+                {activeTab === 'in_progress' ? 'Inicie uma missão na aba "Disponíveis"!' : 'Complete missões para ver aqui!'}
+              </Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  categoriesContainer: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
+  tabsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.base,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    gap: Spacing.xs,
+  },
+  tabActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.primary,
+  },
+  tabBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  categoriesContainer: { maxHeight: 48, marginBottom: Spacing.sm },
   categoriesContent: {
     paddingHorizontal: Spacing.base,
     paddingBottom: Spacing.base,
@@ -200,10 +383,31 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
   },
+  recurrenceBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+  },
   pointsBadge: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+  },
+  rejectedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.sm,
   },
   emptyState: {
     alignItems: 'center',

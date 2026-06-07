@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
 from src.core.security import get_current_user
-from src.modules.events.schemas import EventResponse
+from src.modules.events.schemas import CheckinRequest, EventResponse
 from src.modules.events.service import EventService
 from src.modules.users.models import Profile
 from src.shared.pagination import PaginationParams
@@ -53,7 +53,7 @@ async def register_for_event(
     current_user: Annotated[Profile, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Register for an event."""
+    """Register for an event (RSVP)."""
     service = EventService(db)
     participant = await service.register_for_event(current_user.id, event_id)
     return {"message": "Inscrição realizada", "participant_id": str(participant.id)}
@@ -62,9 +62,13 @@ async def register_for_event(
 @router.post("/{event_id}/checkin")
 async def checkin_event(
     event_id: uuid.UUID,
+    data: CheckinRequest,
     current_user: Annotated[Profile, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Check-in at an event."""
+    """
+    Check-in at an event.
+    PRD §4.3: Requires event code + optional geo location.
+    """
     service = EventService(db)
-    return await service.checkin(current_user.id, event_id)
+    return await service.checkin(current_user.id, event_id, data)

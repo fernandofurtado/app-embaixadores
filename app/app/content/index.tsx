@@ -75,11 +75,15 @@ export default function ContentLibraryScreen() {
 
   const handleShare = async (item: any) => {
     try {
-      await api.shareContent(item.id, 'whatsapp');
+      const result = await api.shareContent(item.id, 'whatsapp');
       await Share.share({
         message: `${item.title}\n\n${item.description || ''}\n\n${item.url || 'Confira na Rede de Embaixadores!'}`,
         title: item.title,
       });
+      if (result.points_awarded && result.points_awarded > 0) {
+        // Brief feedback — could be replaced with toast
+        // Points are already registered on the backend
+      }
     } catch {
       // User cancelled share
     }

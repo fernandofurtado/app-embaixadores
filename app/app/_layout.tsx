@@ -1,6 +1,7 @@
 /**
  * ═══════════════════════════════════════════════════════════════
  *  Root Layout — App entry point with auth routing + onboarding
+ *  Updated with routes for all new screens
  * ═══════════════════════════════════════════════════════════════
  */
 
@@ -70,6 +71,16 @@ export default function RootLayout() {
 
   if (!fontsLoaded || hasSeenOnboarding === null) return null;
 
+  const modalScreenOptions = {
+    headerShown: true,
+    headerTransparent: true,
+    headerBlurEffect: isDark ? 'dark' as const : 'light' as const,
+    headerTitle: '',
+    headerBackTitle: 'Voltar',
+    headerTintColor: Colors.primary,
+    presentation: 'card' as const,
+  };
+
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
@@ -82,49 +93,18 @@ export default function RootLayout() {
       >
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="mission/[id]"
-          options={{
-            headerShown: true,
-            headerTransparent: true,
-            headerBlurEffect: isDark ? 'dark' : 'light',
-            headerTitle: '',
-            headerBackTitle: 'Voltar',
-            headerTintColor: Colors.primary,
-            presentation: 'card',
-          }}
-        />
-        <Stack.Screen
-          name="event/[id]"
-          options={{
-            headerShown: true,
-            headerTransparent: true,
-            headerBlurEffect: isDark ? 'dark' : 'light',
-            headerTitle: '',
-            headerBackTitle: 'Voltar',
-            headerTintColor: Colors.primary,
-            presentation: 'card',
-          }}
-        />
-        <Stack.Screen
-          name="content/index"
-          options={{
-            headerShown: false,
-            presentation: 'card',
-          }}
-        />
-        <Stack.Screen
-          name="content/[id]"
-          options={{
-            headerShown: true,
-            headerTransparent: true,
-            headerBlurEffect: isDark ? 'dark' : 'light',
-            headerTitle: '',
-            headerBackTitle: 'Voltar',
-            headerTintColor: Colors.primary,
-            presentation: 'card',
-          }}
-        />
+
+        {/* ═══ DETAIL SCREENS ═══ */}
+        <Stack.Screen name="mission/[id]" options={modalScreenOptions} />
+        <Stack.Screen name="event/[id]" options={modalScreenOptions} />
+        <Stack.Screen name="content/index" options={{ headerShown: false, presentation: 'card' }} />
+        <Stack.Screen name="content/[id]" options={modalScreenOptions} />
+
+        {/* ═══ NEW SCREENS ═══ */}
+        <Stack.Screen name="notifications/index" options={{ headerShown: false, presentation: 'card' }} />
+        <Stack.Screen name="invitations/index" options={{ headerShown: false, presentation: 'card' }} />
+        <Stack.Screen name="history/index" options={{ headerShown: false, presentation: 'card' }} />
+        <Stack.Screen name="badges/index" options={{ headerShown: false, presentation: 'card' }} />
       </Stack>
     </>
   );

@@ -29,6 +29,12 @@ class MissionCategory(Base, TimestampMixin):
 
 
 class Mission(Base, TimestampMixin, SoftDeleteMixin):
+    """
+    Mission template (PRD §4.1).
+    action_type values: EVENT_ATTENDANCE, CONTENT_SHARE, INVITE,
+                        ORGANIZE_MEETUP, SPREAD_PROPOSAL, COLLECT_DEMAND, TRAINING
+    recurrence values: ONE_TIME, DAILY, WEEKLY, PER_EVENT (PRD §4.4)
+    """
     __tablename__ = "missions"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -37,8 +43,11 @@ class Mission(Base, TimestampMixin, SoftDeleteMixin):
     category_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("mission_categories.id"), nullable=True
     )
-    mission_type: Mapped[str] = mapped_column(String(20), default="one_time")
+    # PRD §4.4: Recurrence type
+    recurrence: Mapped[str] = mapped_column(String(20), default="ONE_TIME")
+    # PRD §4.1: Action/mission type
     action_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    # PRD §4.1: Points are configurable per mission (never hardcode)
     points_reward: Mapped[int] = mapped_column(Integer, nullable=False)
     xp_reward: Mapped[int] = mapped_column(Integer, default=0)
     required_count: Mapped[int] = mapped_column(Integer, default=1)
@@ -57,24 +66,43 @@ class Mission(Base, TimestampMixin, SoftDeleteMixin):
     cover_image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     extra_data: Mapped[dict] = mapped_column("metadata", JSONB, default={})
 
+    # PRD §4.3: Rate limiting per mission type
+    max_daily_completions: Mapped[int] = mapped_column(Integer, default=0)
+    # 0 = unlimited
+
+    # PRD §4.2: Max re-submissions on rejection
+    max_submissions: Mapped[int] = mapped_column(Integer, default=3)
+
+    # PRD §4.1: Self-declared low-weight missions go directly to COMPLETED
+    is_self_declared: Mapped[bool] = mapped_column(Boolean, default=False)
+
     # Relationships
     category: Mapped[MissionCategory | None] = relationship("MissionCategory", back_populates="missions")
     user_missions: Mapped[list["UserMission"]] = relationship("UserMission", back_populates="mission")
 
 
 class UserMission(Base):
+    """
+    User's mission progress.
+    PRD §4.2 States: AVAILABLE → IN_PROGRESS → SUBMITTED → (VALIDATED | REJECTED) → COMPLETED
+    """
     __tablename__ = "user_missions"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"))
     mission_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("missions.id", ondelete="CASCADE"))
     progress_count: Mapped[int] = mapped_column(Integer, default=0)
+    # PRD §4.2: Full state machine
     status: Mapped[str] = mapped_column(String(30), default="in_progress")
     evidence_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    submission_count: Mapped[int] = mapped_column(Integer, default=0)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     verified_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("profiles.id"), nullable=True)
+    rejected_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     points_awarded: Mapped[int] = mapped_column(Integer, default=0)
 
     # Relationships

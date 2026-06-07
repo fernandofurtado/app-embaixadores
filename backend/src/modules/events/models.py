@@ -45,6 +45,12 @@ class Event(Base, TimestampMixin, SoftDeleteMixin):
     )
     extra_data: Mapped[dict] = mapped_column("metadata", JSONB, default={})
 
+    # PRD §4.3: Check-in requires event code + temporal window + optional geo radius
+    checkin_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    checkin_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    checkin_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    checkin_radius_meters: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     # Relationships
     participants: Mapped[list["EventParticipant"]] = relationship("EventParticipant", back_populates="event")
 

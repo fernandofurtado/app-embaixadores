@@ -1,8 +1,8 @@
 """
 ═══════════════════════════════════════════════════════════════
   Gamification Module — Engine
-  Core gamification logic: award points, check level-ups,
-  evaluate badge criteria, calculate rankings.
+  Core gamification logic: award points via ledger, check level-ups
+  with parametrizable requirements, evaluate badge criteria, rankings.
 ═══════════════════════════════════════════════════════════════
 """
 
@@ -12,7 +12,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.modules.gamification.models import Activity, Badge, UserBadge
+from src.modules.gamification.models import Activity, Badge, PointTransaction, UserBadge
 from src.modules.users.models import Level, Profile
 
 
@@ -33,12 +33,42 @@ class GamificationEngine:
         description: str | None = None,
         reference_type: str | None = None,
         reference_id: uuid.UUID | None = None,
+        idempotency_key: str | None = None,
     ) -> dict:
         """
-        Award points to a user and check for level-up.
+        Award points to a user via the immutable ledger (PRD §5.1).
+        Idempotent: duplicate idempotency_key will be silently skipped (PRD §4.3).
         Returns info about the points awarded and any level changes.
         """
-        # Log the activity
+        # Build idempotency key if not provided
+        if not idempotency_key:
+            idempotency_key = f"{user_id}:{reference_type or action_type}:{reference_id or uuid.uuid4()}"
+
+        # Check idempotency — skip if already processed (PRD §4.3)
+        existing = await self.db.execute(
+            select(PointTransaction.id).where(PointTransaction.idempotency_key == idempotency_key)
+        )
+        if existing.scalar_one_or_none():
+            return {
+                "points_awarded": 0,
+                "level_up": None,
+                "new_badges": [],
+                "already_processed": True,
+            }
+
+        # 1. Insert into immutable ledger (PRD §5.1)
+        transaction = PointTransaction(
+            user_id=user_id,
+            points=points,
+            transaction_type="credit",
+            source_type=reference_type or action_type,
+            source_id=reference_id,
+            description=description,
+            idempotency_key=idempotency_key,
+        )
+        self.db.add(transaction)
+
+        # 2. Log the activity (separate from ledger)
         activity = Activity(
             user_id=user_id,
             action_type=action_type,
@@ -49,7 +79,7 @@ class GamificationEngine:
         )
         self.db.add(activity)
 
-        # Update total points
+        # 3. Update materialized snapshot (PRD §5.1: snapshot for performance)
         await self.db.execute(
             update(Profile)
             .where(Profile.id == user_id)
@@ -57,35 +87,94 @@ class GamificationEngine:
         )
         await self.db.flush()
 
-        # Check for level-up
+        # 4. Check for level-up
         level_up = await self._check_level_up(user_id)
 
-        # Check for badge awards
+        # 5. Check for badge awards
         new_badges = await self._check_badge_criteria(user_id)
 
         return {
             "points_awarded": points,
             "level_up": level_up,
             "new_badges": new_badges,
+            "already_processed": False,
         }
 
     async def _check_level_up(self, user_id: uuid.UUID) -> dict | None:
-        """Check if user should level up based on current points."""
+        """
+        Check if user should level up based on current points AND extra requirements.
+        PRD §3.1: Levels have min_points, min_missions_completed, min_referrals_active
+        PRD §3.2: Levels 4/5 require approval (pending_approval state)
+        PRD §3.2: Progression is monotonic (never lose level)
+        """
+        from src.modules.missions.models import UserMission
+
         result = await self.db.execute(
-            select(Profile).where(Profile.id == user_id)
+            select(Profile).options(selectinload(Profile.current_level)).where(Profile.id == user_id)
         )
         profile = result.scalar_one_or_none()
         if not profile:
             return None
 
-        # Find the appropriate level for current points
-        level_result = await self.db.execute(
+        current_order = profile.current_level.order_index if profile.current_level else 0
+
+        # Find all levels above current, ordered ascending
+        levels_result = await self.db.execute(
             select(Level)
-            .where(Level.min_points <= profile.total_points)
-            .order_by(Level.order_index.desc())
-            .limit(1)
+            .where(Level.order_index > current_order)
+            .order_by(Level.order_index.asc())
         )
-        new_level = level_result.scalar_one_or_none()
+        candidate_levels = list(levels_result.scalars().all())
+
+        if not candidate_levels:
+            return None
+
+        # Count missions completed
+        missions_result = await self.db.execute(
+            select(func.count(UserMission.id))
+            .where(UserMission.user_id == user_id, UserMission.status == "completed")
+        )
+        missions_completed = missions_result.scalar() or 0
+
+        # Count active referrals
+        referrals_result = await self.db.execute(
+            select(func.count(Profile.id)).where(Profile.referred_by == user_id)
+        )
+        referrals_active = referrals_result.scalar() or 0
+
+        # Find the highest level the user qualifies for
+        new_level = None
+        for level in candidate_levels:
+            if profile.total_points < level.min_points:
+                break
+            if missions_completed < level.min_missions_completed:
+                break
+            if referrals_active < level.min_referrals_active:
+                break
+
+            if level.requires_approval:
+                # PRD §3.2: Nível 4/5 exigem aprovação humana
+                if not profile.level_pending_approval:
+                    await self.db.execute(
+                        update(Profile)
+                        .where(Profile.id == user_id)
+                        .values(level_pending_approval=True)
+                    )
+                    # Create notification for admin
+                    from src.modules.notifications.models import Notification
+                    notification = Notification(
+                        title="Aprovação de nível pendente",
+                        body=f"{profile.full_name} atingiu os requisitos para o nível {level.name} e aguarda aprovação.",
+                        notification_type="level_approval",
+                    )
+                    self.db.add(notification)
+                return {
+                    "pending_approval": True,
+                    "pending_level_name": level.name,
+                    "pending_level_order": level.order_index,
+                }
+            else:
+                new_level = level
 
         if new_level and (profile.current_level_id is None or new_level.id != profile.current_level_id):
             # Level up!
@@ -94,6 +183,17 @@ class GamificationEngine:
                 .where(Profile.id == user_id)
                 .values(current_level_id=new_level.id)
             )
+
+            # Create notification for user
+            from src.modules.notifications.models import Notification
+            notification = Notification(
+                user_id=user_id,
+                title="🎉 Parabéns! Você subiu de nível!",
+                body=f"Você alcançou o nível {new_level.name}!",
+                notification_type="level_up",
+            )
+            self.db.add(notification)
+
             return {
                 "new_level_name": new_level.name,
                 "new_level_order": new_level.order_index,
@@ -182,7 +282,7 @@ class GamificationEngine:
         if region_id:
             query = query.where(Profile.region_id == region_id)
 
-        query = query.order_by(Profile.total_points.desc()).limit(limit)
+        query = query.order_by(Profile.total_points.desc(), Profile.created_at.asc()).limit(limit)
         result = await self.db.execute(query)
 
         leaderboard = []
@@ -199,6 +299,59 @@ class GamificationEngine:
             })
 
         return leaderboard
+
+    async def get_user_rank(self, user_id: uuid.UUID) -> dict:
+        """Get a user's rank position even if outside top-N (PRD §5.2)."""
+        profile_result = await self.db.execute(
+            select(Profile).where(Profile.id == user_id)
+        )
+        profile = profile_result.scalar_one_or_none()
+        if not profile:
+            return {"rank": 0}
+
+        rank_result = await self.db.execute(
+            select(func.count(Profile.id))
+            .where(Profile.total_points > profile.total_points, Profile.is_active.is_(True))
+        )
+        rank_position = (rank_result.scalar() or 0) + 1
+        return {"rank": rank_position, "total_points": profile.total_points}
+
+    async def get_points_history(
+        self, user_id: uuid.UUID, limit: int = 50, offset: int = 0
+    ) -> list[PointTransaction]:
+        """Get point transaction history for a user (ledger transparency — PRD §6.1.4)."""
+        result = await self.db.execute(
+            select(PointTransaction)
+            .where(PointTransaction.user_id == user_id)
+            .order_by(PointTransaction.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def reconcile_points(self, user_id: uuid.UUID) -> dict:
+        """
+        Reconcile materialized total_points vs ledger sum (PRD §5.1).
+        Used periodically to ensure data integrity.
+        """
+        ledger_sum_result = await self.db.execute(
+            select(func.sum(PointTransaction.points))
+            .where(PointTransaction.user_id == user_id)
+        )
+        ledger_sum = ledger_sum_result.scalar() or 0
+
+        profile_result = await self.db.execute(
+            select(Profile.total_points).where(Profile.id == user_id)
+        )
+        current_total = profile_result.scalar() or 0
+
+        if ledger_sum != current_total:
+            await self.db.execute(
+                update(Profile).where(Profile.id == user_id).values(total_points=ledger_sum)
+            )
+            return {"reconciled": True, "old_total": current_total, "new_total": ledger_sum}
+
+        return {"reconciled": False, "total": current_total}
 
     async def get_user_stats(self, user_id: uuid.UUID) -> dict:
         """Get comprehensive stats for a user."""
@@ -288,6 +441,7 @@ class GamificationEngine:
             "total_badges": len(badges),
             "rank_position": rank_position,
             "total_referrals": total_referrals,
+            "level_pending_approval": profile.level_pending_approval,
             "recent_activities": recent_activities,
             "badges": badges,
         }

@@ -10,7 +10,6 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  Share as RNShare,
   StyleSheet,
   Text,
   useColorScheme,
@@ -200,15 +199,9 @@ export default function HomeScreen() {
         </Text>
         <View style={styles.quickActions}>
           <QuickAction theme={theme} icon="share" label="Compartilhar" color={Colors.primary} onPress={() => router.push('/content')} />
-          <QuickAction theme={theme} icon="group-add" label="Convidar" color={Colors.success} onPress={() => {
-            if (user?.referral_code) {
-              RNShare.share({
-                message: `Junte-se à Rede de Embaixadores! Use meu código: ${user.referral_code}\n\nBaixe o app: https://embaixadores.app`,
-              });
-            }
-          }} />
+          <QuickAction theme={theme} icon="group-add" label="Convidar" color={Colors.success} onPress={() => router.push('/invitations' as any)} />
           <QuickAction theme={theme} icon="library-books" label="Materiais" color={Colors.themes.science} onPress={() => router.push('/content')} />
-          <QuickAction theme={theme} icon="notifications" label="Avisos" color={Colors.accent} onPress={() => {}} />
+          <QuickAction theme={theme} icon="notifications" label="Avisos" color={Colors.accent} onPress={() => router.push('/notifications' as any)} />
         </View>
       </View>
     </ScrollView>

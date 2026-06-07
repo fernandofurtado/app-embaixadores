@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.supabase import get_supabase_admin
 from src.modules.auth.schemas import LoginRequest, RegisterRequest
-from src.modules.users.models import Level, Profile
+from src.modules.users.models import Consent, Level, Profile
 from src.shared.exceptions import BadRequestException, ConflictException, UnauthorizedException
 
 
@@ -27,6 +27,13 @@ class AuthService:
 
     async def register(self, data: RegisterRequest) -> dict:
         """Register a new user via Supabase Auth and create a local profile."""
+
+        # PRD §8.1: data_processing consent is mandatory
+        consent_types = {c.consent_type for c in data.consents}
+        if "data_processing" not in consent_types:
+            raise BadRequestException(
+                "Consentimento para tratamento de dados é obrigatório para cadastro (LGPD)"
+            )
 
         # Check if email already exists locally
         result = await self.db.execute(select(Profile).where(Profile.email == data.email))
@@ -80,6 +87,33 @@ class AuthService:
             terms_accepted_at=datetime.now(timezone.utc),
         )
         self.db.add(profile)
+        await self.db.flush()
+
+        # PRD §8.1: Record granular consents with version and timestamp
+        for consent_input in data.consents:
+            consent = Consent(
+                user_id=profile.id,
+                consent_type=consent_input.consent_type,
+                version=consent_input.version,
+                granted=consent_input.granted,
+                granted_at=datetime.now(timezone.utc),
+            )
+            self.db.add(consent)
+
+        # If registered via referral, mark invitation as registered
+        if data.referral_code:
+            from src.modules.invitations.models import Invitation
+            inv_result = await self.db.execute(
+                select(Invitation).where(
+                    Invitation.invite_code == data.referral_code,
+                    Invitation.status == "pending",
+                )
+            )
+            invitation = inv_result.scalar_one_or_none()
+            if invitation:
+                invitation.status = "registered"
+                invitation.invitee_id = profile.id
+
         await self.db.flush()
 
         return {

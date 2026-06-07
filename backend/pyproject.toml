@@ -41,6 +41,12 @@ select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 
+[tool.pyright]
+pythonVersion = "3.13"
+venvPath = "."
+venv = ".venv"
+extraPaths = ["."]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

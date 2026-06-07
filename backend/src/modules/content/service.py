@@ -1,0 +1,106 @@
+"""
+═══════════════════════════════════════════════════════════════
+  Content Module — Service
+  PRD §4.1 CONTENT_SHARE: Share content with rate limiting
+═══════════════════════════════════════════════════════════════
+"""
+
+import uuid
+
+from sqlalchemy import func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.modules.content.models import Content, ContentShare
+from src.modules.content.schemas import ContentCreate, ContentUpdate
+from src.modules.gamification.engine import GamificationEngine
+from src.shared.exceptions import NotFoundException
+from src.shared.pagination import PaginatedResponse, PaginationParams
+from src.shared.rate_limiter import rate_limiter
+
+
+class ContentService:
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def list_content(
+        self,
+        params: PaginationParams,
+        content_type: str | None = None,
+        category: str | None = None,
+    ) -> PaginatedResponse:
+        query = select(Content).where(Content.is_active.is_(True))
+        count_query = select(func.count(Content.id)).where(Content.is_active.is_(True))
+
+        if content_type:
+            query = query.where(Content.content_type == content_type)
+            count_query = count_query.where(Content.content_type == content_type)
+        if category:
+            query = query.where(Content.category == category)
+            count_query = count_query.where(Content.category == category)
+
+        total = (await self.db.execute(count_query)).scalar() or 0
+        query = query.order_by(Content.is_featured.desc(), Content.created_at.desc())
+        query = query.offset(params.offset).limit(params.page_size)
+
+        result = await self.db.execute(query)
+        items = list(result.scalars().all())
+        return PaginatedResponse.create(items=items, total=total, params=params)
+
+    async def get_content(self, content_id: uuid.UUID) -> Content:
+        result = await self.db.execute(
+            select(Content).where(Content.id == content_id)
+        )
+        content = result.scalar_one_or_none()
+        if not content:
+            raise NotFoundException("Conteúdo não encontrado")
+        return content
+
+    async def share_content(
+        self, user_id: uuid.UUID, content_id: uuid.UUID, platform: str = "whatsapp"
+    ) -> dict:
+        """
+        Record a content share and award points.
+        PRD §4.3: Rate limiting — max 10 shares/day.
+        """
+        # Rate limit (10 shares/day default)
+        rate_limiter.check(user_id, "content_share")
+
+        content = await self.get_content(content_id)
+
+        # Record share
+        share = ContentShare(content_id=content_id, user_id=user_id, platform=platform)
+        self.db.add(share)
+
+        # Increment share count
+        await self.db.execute(
+            update(Content).where(Content.id == content_id).values(total_shares=Content.total_shares + 1)
+        )
+
+        # Award points (idempotent per share instance)
+        engine = GamificationEngine(self.db)
+        result = await engine.award_points(
+            user_id=user_id,
+            points=content.points_per_share,
+            action_type="content_share",
+            description=f"Compartilhou: {content.title}",
+            reference_type="content_share",
+            reference_id=content_id,
+            idempotency_key=f"{user_id}:content_share:{content_id}:{share.id}",
+        )
+
+        return {"message": "Compartilhamento registrado", "gamification": result}
+
+    async def create_content(self, data: ContentCreate, created_by: uuid.UUID) -> Content:
+        """Admin: create new content."""
+        content = Content(**data.model_dump(), created_by=created_by)
+        self.db.add(content)
+        await self.db.flush()
+        return content
+
+    async def update_content(self, content_id: uuid.UUID, data: ContentUpdate) -> Content:
+        """Admin: update content."""
+        content = await self.get_content(content_id)
+        for key, value in data.model_dump(exclude_unset=True).items():
+            setattr(content, key, value)
+        await self.db.flush()
+        return content

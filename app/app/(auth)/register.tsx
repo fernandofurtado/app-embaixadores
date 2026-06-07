@@ -1,6 +1,7 @@
 /**
  * ═══════════════════════════════════════════════════════════════
- *  Register Screen — Multi-field registration
+ *  Register Screen — Multi-field registration with LGPD consents
+ *  PRD §8.1: Consentimento granular no cadastro
  * ═══════════════════════════════════════════════════════════════
  */
 
@@ -10,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -20,6 +22,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -35,6 +38,12 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [referralCode, setReferralCode] = useState('');
+
+  // LGPD Consents (PRD §8.1)
+  const [consentDataProcessing, setConsentDataProcessing] = useState(false);
+  const [consentCommunication, setConsentCommunication] = useState(false);
+  const [consentPublicRanking, setConsentPublicRanking] = useState(false);
+
   const { register, isLoading } = useAuthStore();
 
   const handleRegister = async () => {
@@ -50,6 +59,13 @@ export default function RegisterScreen() {
       Alert.alert('Atenção', 'A senha deve ter pelo menos 6 caracteres');
       return;
     }
+    if (!consentDataProcessing) {
+      Alert.alert(
+        'Consentimento Necessário',
+        'Para criar sua conta, é obrigatório aceitar o tratamento de dados pessoais conforme a LGPD.'
+      );
+      return;
+    }
     try {
       await register({
         full_name: fullName,
@@ -57,6 +73,11 @@ export default function RegisterScreen() {
         password,
         phone: phone || undefined,
         referral_code: referralCode || undefined,
+        consents: [
+          { consent_type: 'data_processing', accepted: consentDataProcessing },
+          { consent_type: 'communication', accepted: consentCommunication },
+          { consent_type: 'public_ranking', accepted: consentPublicRanking },
+        ],
       });
     } catch (error: any) {
       Alert.alert('Erro', error.message || 'Falha no cadastro');
@@ -92,6 +113,44 @@ export default function RegisterScreen() {
         autoCorrect={false}
       />
     </View>
+  );
+
+  const ConsentCheckbox = ({
+    checked,
+    onToggle,
+    label,
+    sublabel,
+    required,
+  }: {
+    checked: boolean;
+    onToggle: () => void;
+    label: string;
+    sublabel?: string;
+    required?: boolean;
+  }) => (
+    <Pressable
+      style={[styles.consentRow, { backgroundColor: theme.surface, borderColor: theme.border }]}
+      onPress={onToggle}
+    >
+      <View style={[
+        styles.checkbox,
+        { borderColor: checked ? Colors.primary : theme.textTertiary },
+        checked && { backgroundColor: Colors.primary },
+      ]}>
+        {checked && <MaterialIcons name="check" size={14} color="#fff" />}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[Typography.subhead, { color: theme.text }]}>
+          {label}
+          {required && <Text style={{ color: Colors.danger }}> *</Text>}
+        </Text>
+        {sublabel && (
+          <Text style={[Typography.caption2, { color: theme.textTertiary, marginTop: 2 }]}>
+            {sublabel}
+          </Text>
+        )}
+      </View>
+    </Pressable>
   );
 
   return (
@@ -159,14 +218,41 @@ export default function RegisterScreen() {
             optional
           />
 
+          {/* ═══ LGPD CONSENTS (PRD §8.1) ═══ */}
+          <View style={styles.consentSection}>
+            <Text style={[Typography.headline, { color: theme.text, marginBottom: Spacing.sm }]}>
+              Consentimentos (LGPD)
+            </Text>
+            <ConsentCheckbox
+              checked={consentDataProcessing}
+              onToggle={() => setConsentDataProcessing(!consentDataProcessing)}
+              label="Tratamento de dados pessoais"
+              sublabel="Necessário para o funcionamento do app"
+              required
+            />
+            <ConsentCheckbox
+              checked={consentCommunication}
+              onToggle={() => setConsentCommunication(!consentCommunication)}
+              label="Receber comunicações da campanha"
+              sublabel="Notificações, e-mails e atualizações"
+            />
+            <ConsentCheckbox
+              checked={consentPublicRanking}
+              onToggle={() => setConsentPublicRanking(!consentPublicRanking)}
+              label="Exibir meu nome no ranking público"
+              sublabel="Outros participantes poderão ver sua posição"
+            />
+          </View>
+
           <Pressable
             style={({ pressed }) => [
               styles.button,
               { backgroundColor: Colors.primary, opacity: pressed ? 0.85 : 1 },
               isLoading && styles.buttonDisabled,
+              !consentDataProcessing && styles.buttonDisabled,
             ]}
             onPress={handleRegister}
-            disabled={isLoading}
+            disabled={isLoading || !consentDataProcessing}
           >
             {isLoading ? (
               <ActivityIndicator color="#fff" />
@@ -175,8 +261,13 @@ export default function RegisterScreen() {
             )}
           </Pressable>
 
-          <Text style={[Typography.caption1, { color: theme.textTertiary, textAlign: 'center', marginTop: Spacing.sm }]}>
-            Ao criar sua conta, você concorda com os Termos de Uso e a Política de Privacidade.
+          <Pressable onPress={() => Linking.openURL('https://embaixadores.app/privacidade')}>
+            <Text style={[Typography.caption1, { color: Colors.primary, textAlign: 'center', marginTop: Spacing.sm, textDecorationLine: 'underline' }]}>
+              Política de Privacidade
+            </Text>
+          </Pressable>
+          <Text style={[Typography.caption2, { color: theme.textTertiary, textAlign: 'center', marginTop: Spacing.xs }]}>
+            Ao criar sua conta, você concorda com os Termos de Uso.
           </Text>
         </View>
 
@@ -208,6 +299,27 @@ const styles = StyleSheet.create({
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   inputLabel: { ...Typography.caption1, marginBottom: Spacing.xs },
   input: { ...Typography.body, paddingVertical: Spacing.xs },
+  consentSection: {
+    marginTop: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   button: {
     paddingVertical: Spacing.base,
     borderRadius: BorderRadius.pill,

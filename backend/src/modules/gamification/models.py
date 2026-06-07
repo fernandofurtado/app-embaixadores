@@ -1,19 +1,51 @@
 """
 ═══════════════════════════════════════════════════════════════
   Gamification Module — Models
-  Activity log, badges, and user badges.
+  Activity log, badges, user badges, and point transactions ledger.
 ═══════════════════════════════════════════════════════════════
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.database import Base
 from src.shared.models import TimestampMixin
+
+
+class PointTransaction(Base):
+    """
+    Immutable point ledger (PRD §5.1).
+    Every point credit/debit is recorded here — never a simple mutable counter.
+    User's balance = SUM of this ledger (materialized in Profile.total_points for performance).
+    """
+    __tablename__ = "point_transactions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    points: Mapped[int] = mapped_column(Integer, nullable=False)
+    transaction_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    # e.g.: 'credit', 'debit', 'adjustment'
+    source_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    # e.g.: 'mission', 'event', 'content_share', 'invite', 'admin_adjustment'
+    source_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # PRD §4.3: Idempotência — chave: usuário+missão+ocorrência
+    idempotency_key: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_point_transactions_idempotency"),
+    )
 
 
 class Activity(Base, TimestampMixin):
@@ -55,7 +87,7 @@ class UserBadge(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"))
     badge_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("badges.id", ondelete="CASCADE"))
-    awarded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now())
+    awarded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     seen: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Relationships

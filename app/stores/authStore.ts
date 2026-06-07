@@ -1,6 +1,7 @@
 /**
  * ═══════════════════════════════════════════════════════════════
  *  Auth Store — Zustand state management for authentication
+ *  With LGPD consent management and account deletion
  * ═══════════════════════════════════════════════════════════════
  */
 
@@ -8,26 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import api from '../services/api';
-
-interface User {
-  id: string;
-  full_name: string;
-  email: string;
-  phone?: string;
-  avatar_url?: string;
-  bio?: string;
-  total_points: number;
-  current_level?: {
-    id: string;
-    name: string;
-    slug: string;
-    color: string;
-    order_index: number;
-  };
-  role: string;
-  referral_code?: string;
-  onboarding_completed: boolean;
-}
+import type { Consent, ConsentType, User } from '../services/types';
 
 interface AuthState {
   user: User | null;
@@ -35,6 +17,7 @@ interface AuthState {
   refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  consents: Consent[];
 
   login: (email: string, password: string) => Promise<void>;
   register: (data: {
@@ -43,10 +26,14 @@ interface AuthState {
     password: string;
     phone?: string;
     referral_code?: string;
+    consents?: { consent_type: ConsentType; accepted: boolean }[];
   }) => Promise<void>;
   logout: () => void;
   refreshProfile: () => Promise<void>;
   setTokens: (accessToken: string, refreshToken: string) => void;
+  loadConsents: () => Promise<void>;
+  toggleConsent: (consentType: ConsentType, accepted: boolean) => Promise<void>;
+  deleteAccount: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -57,6 +44,7 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
+      consents: [],
 
       login: async (email: string, password: string) => {
         set({ isLoading: true });
@@ -107,6 +95,7 @@ export const useAuthStore = create<AuthState>()(
           accessToken: null,
           refreshToken: null,
           isAuthenticated: false,
+          consents: [],
         });
       },
 
@@ -122,6 +111,47 @@ export const useAuthStore = create<AuthState>()(
       setTokens: (accessToken: string, refreshToken: string) => {
         api.setToken(accessToken);
         set({ accessToken, refreshToken, isAuthenticated: true });
+      },
+
+      loadConsents: async () => {
+        try {
+          const consents = await api.getMyConsents();
+          set({ consents });
+        } catch {
+          // silent fail
+        }
+      },
+
+      toggleConsent: async (consentType: ConsentType, accepted: boolean) => {
+        try {
+          if (accepted) {
+            await api.grantConsent(consentType, true);
+          } else {
+            await api.revokeConsent(consentType);
+          }
+          // Reload consents to get fresh state
+          const consents = await api.getMyConsents();
+          set({ consents });
+        } catch (error) {
+          throw error;
+        }
+      },
+
+      deleteAccount: async () => {
+        try {
+          await api.deleteAccount();
+          // Clear local state after deletion
+          api.setToken(null);
+          set({
+            user: null,
+            accessToken: null,
+            refreshToken: null,
+            isAuthenticated: false,
+            consents: [],
+          });
+        } catch (error) {
+          throw error;
+        }
       },
     }),
     {

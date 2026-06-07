@@ -1,26 +1,46 @@
 /**
  * ═══════════════════════════════════════════════════════════════
- *  Tabs Layout — Bottom navigation with Inácio design system
+ *  Tabs Layout — Bottom navigation with notification badge
  * ═══════════════════════════════════════════════════════════════
  */
 
 import { Tabs } from 'expo-router';
-import { Platform, useColorScheme, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Platform, useColorScheme, View, Text, type ColorValue } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Colors } from '../../constants/theme';
+import { Colors, Typography } from '../../constants/theme';
 import { ColorBar } from '../../components/ui/ColorBar';
+import api from '../../services/api';
 
 type IconName = React.ComponentProps<typeof MaterialIcons>['name'];
 
-function TabBarIcon({ name, color, size }: { name: IconName; color: string; size: number }) {
-  return <MaterialIcons name={name} size={size} color={color} />;
+function TabBarIcon({ name, color, size }: { name: IconName; color: string | ColorValue; size: number }) {
+  return <MaterialIcons name={name} size={size} color={color as string} />;
 }
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const theme = isDark ? Colors.dark : Colors.light;
+
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Poll unread notifications count
+  useEffect(() => {
+    const loadUnread = async () => {
+      try {
+        const data = await api.getUnreadCount();
+        setUnreadCount(data.count || 0);
+      } catch {
+        // silent
+      }
+    };
+    loadUnread();
+    // Refresh every 60 seconds
+    const interval = setInterval(loadUnread, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <View style={{ flex: 1 }}>
@@ -56,6 +76,25 @@ export default function TabLayout() {
             ...(Platform.OS === 'ios' && { position: 'absolute' as const }),
           },
           tabBarLabelStyle: { fontSize: 10, fontWeight: '600' as const },
+          // Notification badge in header
+          headerRight: () =>
+            unreadCount > 0 ? (
+              <View style={{ marginRight: 16 }}>
+                <View style={{
+                  backgroundColor: Colors.accent,
+                  borderRadius: 10,
+                  minWidth: 20,
+                  height: 20,
+                  paddingHorizontal: 6,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <Text style={{ ...Typography.caption2, color: '#fff', fontWeight: '700' }}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              </View>
+            ) : null,
         }}
       >
         <Tabs.Screen

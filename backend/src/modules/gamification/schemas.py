@@ -42,6 +42,19 @@ class ActivityResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PointTransactionResponse(BaseModel):
+    """Single entry from the immutable point ledger (PRD §5.1)."""
+    id: uuid.UUID
+    points: int
+    transaction_type: str
+    source_type: str
+    source_id: uuid.UUID | None = None
+    description: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class LeaderboardEntry(BaseModel):
     rank: int
     user_id: uuid.UUID
@@ -67,5 +80,6 @@ class UserStats(BaseModel):
     total_badges: int = 0
     rank_position: int = 0
     total_referrals: int = 0
+    level_pending_approval: bool = False
     recent_activities: list[ActivityResponse] = []
     badges: list[UserBadgeResponse] = []

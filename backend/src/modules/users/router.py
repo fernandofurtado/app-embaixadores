@@ -14,6 +14,9 @@ from src.core.database import get_db
 from src.core.security import get_current_user
 from src.modules.users.models import Profile
 from src.modules.users.schemas import (
+    ConsentCreate,
+    ConsentResponse,
+    DeleteAccountRequest,
     LevelResponse,
     ProfileResponse,
     ProfileUpdate,
@@ -83,3 +86,54 @@ async def generate_referral(
     service = UserService(db)
     code = await service.generate_referral_code(current_user.id)
     return {"referral_code": code}
+
+
+# ═══ CONSENT MANAGEMENT (LGPD §8.1) ═══
+
+@router.post("/me/consents", response_model=ConsentResponse)
+async def record_consent(
+    data: ConsentCreate,
+    current_user: Annotated[Profile, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Record a granular LGPD consent.
+    Types: data_processing, communication, public_ranking
+    """
+    service = UserService(db)
+    return await service.record_consent(current_user.id, data)
+
+
+@router.get("/me/consents", response_model=list[ConsentResponse])
+async def get_my_consents(
+    current_user: Annotated[Profile, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Get all consents for the current user."""
+    service = UserService(db)
+    return await service.get_user_consents(current_user.id)
+
+
+@router.delete("/me/consents/{consent_type}")
+async def revoke_consent(
+    consent_type: str,
+    current_user: Annotated[Profile, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Revoke a specific consent type (LGPD right)."""
+    service = UserService(db)
+    return await service.revoke_consent(current_user.id, consent_type)
+
+
+@router.delete("/me/account")
+async def delete_my_account(
+    data: DeleteAccountRequest,
+    current_user: Annotated[Profile, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Delete account and anonymize data (LGPD §8.1).
+    User must confirm by typing 'EXCLUIR MINHA CONTA'.
+    """
+    service = UserService(db)
+    return await service.delete_account(current_user.id, data)

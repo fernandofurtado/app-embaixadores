@@ -1,15 +1,20 @@
 /**
  * ═══════════════════════════════════════════════════════════════
- *  Profile Screen — User profile with badges and settings
+ *  Profile Screen — User profile with badges, consents, delete account
+ *  PRD §6.1.3: Perfil com nível, badges, progresso
+ *  PRD §8.1: LGPD consents + delete account
  * ═══════════════════════════════════════════════════════════════
  */
 
 import { useRouter } from 'expo-router';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, useColorScheme, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 import { useAuthStore } from '../../stores/authStore';
+import api from '../../services/api';
+import type { UserStats } from '../../services/types';
 
 export default function ProfileScreen() {
   const colorScheme = useColorScheme();
@@ -20,6 +25,17 @@ export default function ProfileScreen() {
 
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const consents = useAuthStore((s) => s.consents);
+  const loadConsents = useAuthStore((s) => s.loadConsents);
+  const toggleConsent = useAuthStore((s) => s.toggleConsent);
+  const deleteAccount = useAuthStore((s) => s.deleteAccount);
+
+  const [stats, setStats] = useState<UserStats | null>(null);
+
+  useEffect(() => {
+    loadConsents();
+    api.getMyStats().then(setStats).catch(() => {});
+  }, []);
 
   const levelColor = user?.current_level?.color || Colors.primary;
   const levelName = user?.current_level?.name || 'Apoiador';
@@ -31,9 +47,59 @@ export default function ProfileScreen() {
     ]);
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Excluir Conta',
+      'Esta ação é irreversível. Seus dados serão anonimizados e você perderá todo o progresso. Deseja continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir Permanentemente',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Confirmação Final',
+              'Tem CERTEZA ABSOLUTA? Não será possível recuperar sua conta.',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Sim, excluir',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await deleteAccount();
+                    } catch (error: any) {
+                      Alert.alert('Erro', error.message || 'Falha ao excluir conta');
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  const handleToggleConsent = async (consentType: 'data_processing' | 'communication' | 'public_ranking', currentValue: boolean) => {
+    if (consentType === 'data_processing' && currentValue) {
+      Alert.alert('Atenção', 'O consentimento de tratamento de dados é obrigatório. Para revogar, exclua sua conta.');
+      return;
+    }
+    try {
+      await toggleConsent(consentType, !currentValue);
+    } catch (error: any) {
+      Alert.alert('Erro', error.message || 'Falha ao atualizar consentimento');
+    }
+  };
+
+  const getConsentValue = (type: string) => {
+    return consents.some((c) => c.consent_type === type && c.accepted);
+  };
+
   type IconName = React.ComponentProps<typeof MaterialIcons>['name'];
 
-  const MenuRow = ({ icon, label, onPress, danger }: { icon: IconName; label: string; onPress?: () => void; danger?: boolean }) => (
+  const MenuRow = ({ icon, label, onPress, danger, badge }: { icon: IconName; label: string; onPress?: () => void; danger?: boolean; badge?: number }) => (
     <Pressable
       style={({ pressed }) => [
         styles.menuRow,
@@ -43,6 +109,11 @@ export default function ProfileScreen() {
     >
       <MaterialIcons name={icon} size={20} color={danger ? Colors.danger : Colors.primary} />
       <Text style={[Typography.body, { color: danger ? Colors.danger : theme.text, flex: 1 }]}>{label}</Text>
+      {badge !== undefined && badge > 0 && (
+        <View style={[styles.menuBadge, { backgroundColor: Colors.accent }]}>
+          <Text style={[Typography.caption2, { color: '#fff', fontWeight: '700' }]}>{badge}</Text>
+        </View>
+      )}
       <MaterialIcons name="chevron-right" size={20} color={theme.textTertiary} />
     </Pressable>
   );
@@ -76,21 +147,48 @@ export default function ProfileScreen() {
           <View style={[styles.statDivider, { backgroundColor: theme.separator }]} />
           <View style={styles.profileStat}>
             <Text style={[Typography.title3, { color: Colors.success }]}>
-              {user?.current_level?.order_index || 1}
+              {stats?.total_badges || 0}
             </Text>
-            <Text style={[Typography.caption2, { color: theme.textSecondary }]}>Nível</Text>
+            <Text style={[Typography.caption2, { color: theme.textSecondary }]}>Badges</Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: theme.separator }]} />
           <View style={styles.profileStat}>
             <Text style={[Typography.title3, { color: Colors.warning }]}>
-              {user?.referral_code || '—'}
+              #{stats?.rank_position || '—'}
             </Text>
-            <Text style={[Typography.caption2, { color: theme.textSecondary }]}>Código</Text>
+            <Text style={[Typography.caption2, { color: theme.textSecondary }]}>Ranking</Text>
           </View>
         </View>
       </View>
 
-      {/* ═══ MENU ═══ */}
+      {/* ═══ BADGES PREVIEW ═══ */}
+      {stats && stats.badges.length > 0 && (
+        <Pressable
+          style={[styles.badgesPreview, { backgroundColor: theme.surface }, Shadows.sm]}
+          onPress={() => router.push('/badges' as any)}
+        >
+          <View style={styles.badgesPreviewHeader}>
+            <Text style={[Typography.headline, { color: theme.text }]}>Conquistas Recentes</Text>
+            <Text style={[Typography.caption1, { color: Colors.primary }]}>Ver todas</Text>
+          </View>
+          <View style={styles.badgesRow}>
+            {stats.badges.slice(0, 4).map((ub) => (
+              <View key={ub.id} style={[styles.badgeMini, { backgroundColor: (Colors.rarity as any)[ub.badge.rarity] + '20' || Colors.primary + '20' }]}>
+                <MaterialIcons name="military-tech" size={20} color={(Colors.rarity as any)[ub.badge.rarity] || Colors.primary} />
+              </View>
+            ))}
+            {stats.total_badges > 4 && (
+              <View style={[styles.badgeMini, { backgroundColor: theme.surfaceElevated }]}>
+                <Text style={[Typography.caption1, { color: theme.textSecondary, fontWeight: '700' }]}>
+                  +{stats.total_badges - 4}
+                </Text>
+              </View>
+            )}
+          </View>
+        </Pressable>
+      )}
+
+      {/* ═══ MENU — CONTA ═══ */}
       <View style={styles.menuSection}>
         <Text style={[Typography.footnote, { color: theme.textTertiary, marginBottom: Spacing.sm, paddingHorizontal: Spacing.base }]}>
           CONTA
@@ -98,21 +196,69 @@ export default function ProfileScreen() {
         <View style={[styles.menuGroup, { borderColor: theme.border }]}>
           <MenuRow icon="edit" label="Editar Perfil" onPress={() => {}} />
           <View style={[styles.menuDivider, { backgroundColor: theme.separator }]} />
-          <MenuRow icon="notifications" label="Notificações" onPress={() => {}} />
+          <MenuRow icon="notifications" label="Notificações" onPress={() => router.push('/notifications' as any)} />
           <View style={[styles.menuDivider, { backgroundColor: theme.separator }]} />
-          <MenuRow icon="military-tech" label="Minhas Conquistas" onPress={() => {}} />
+          <MenuRow icon="military-tech" label="Minhas Conquistas" badge={stats?.total_badges} onPress={() => router.push('/badges' as any)} />
           <View style={[styles.menuDivider, { backgroundColor: theme.separator }]} />
-          <MenuRow icon="bar-chart" label="Meu Histórico" onPress={() => {}} />
+          <MenuRow icon="bar-chart" label="Histórico de Pontos" onPress={() => router.push('/history' as any)} />
+          <View style={[styles.menuDivider, { backgroundColor: theme.separator }]} />
+          <MenuRow icon="group-add" label="Meus Convites" onPress={() => router.push('/invitations' as any)} />
         </View>
       </View>
 
+      {/* ═══ CONSENTS (LGPD §8.1) ═══ */}
+      <View style={styles.menuSection}>
+        <Text style={[Typography.footnote, { color: theme.textTertiary, marginBottom: Spacing.sm, paddingHorizontal: Spacing.base }]}>
+          PRIVACIDADE (LGPD)
+        </Text>
+        <View style={[styles.menuGroup, { borderColor: theme.border }]}>
+          <View style={[styles.consentRow, { backgroundColor: theme.surface }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[Typography.body, { color: theme.text }]}>Tratamento de dados</Text>
+              <Text style={[Typography.caption2, { color: theme.textTertiary }]}>Obrigatório</Text>
+            </View>
+            <Switch
+              value={getConsentValue('data_processing')}
+              disabled
+              trackColor={{ false: theme.surfaceElevated, true: Colors.primary + '60' }}
+              thumbColor={Colors.primary}
+            />
+          </View>
+          <View style={[styles.menuDivider, { backgroundColor: theme.separator }]} />
+          <View style={[styles.consentRow, { backgroundColor: theme.surface }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[Typography.body, { color: theme.text }]}>Comunicações</Text>
+              <Text style={[Typography.caption2, { color: theme.textTertiary }]}>Notificações e e-mails</Text>
+            </View>
+            <Switch
+              value={getConsentValue('communication')}
+              onValueChange={() => handleToggleConsent('communication', getConsentValue('communication'))}
+              trackColor={{ false: theme.surfaceElevated, true: Colors.primary + '60' }}
+              thumbColor={getConsentValue('communication') ? Colors.primary : theme.textTertiary}
+            />
+          </View>
+          <View style={[styles.menuDivider, { backgroundColor: theme.separator }]} />
+          <View style={[styles.consentRow, { backgroundColor: theme.surface }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[Typography.body, { color: theme.text }]}>Ranking público</Text>
+              <Text style={[Typography.caption2, { color: theme.textTertiary }]}>Exibir nome no ranking</Text>
+            </View>
+            <Switch
+              value={getConsentValue('public_ranking')}
+              onValueChange={() => handleToggleConsent('public_ranking', getConsentValue('public_ranking'))}
+              trackColor={{ false: theme.surfaceElevated, true: Colors.primary + '60' }}
+              thumbColor={getConsentValue('public_ranking') ? Colors.primary : theme.textTertiary}
+            />
+          </View>
+        </View>
+      </View>
+
+      {/* ═══ GERAL ═══ */}
       <View style={styles.menuSection}>
         <Text style={[Typography.footnote, { color: theme.textTertiary, marginBottom: Spacing.sm, paddingHorizontal: Spacing.base }]}>
           GERAL
         </Text>
         <View style={[styles.menuGroup, { borderColor: theme.border }]}>
-          <MenuRow icon="group-add" label="Convidar Amigos" onPress={() => {}} />
-          <View style={[styles.menuDivider, { backgroundColor: theme.separator }]} />
           <MenuRow icon="description" label="Termos de Uso" onPress={() => {}} />
           <View style={[styles.menuDivider, { backgroundColor: theme.separator }]} />
           <MenuRow icon="shield" label="Política de Privacidade" onPress={() => {}} />
@@ -121,9 +267,12 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {/* ═══ DANGER ZONE ═══ */}
       <View style={styles.menuSection}>
         <View style={[styles.menuGroup, { borderColor: theme.border }]}>
           <MenuRow icon="logout" label="Sair da Conta" onPress={handleLogout} danger />
+          <View style={[styles.menuDivider, { backgroundColor: theme.separator }]} />
+          <MenuRow icon="delete-forever" label="Excluir Conta" onPress={handleDeleteAccount} danger />
         </View>
       </View>
 
@@ -169,6 +318,26 @@ const styles = StyleSheet.create({
   },
   profileStat: { alignItems: 'center' },
   statDivider: { width: 1, height: 30 },
+  badgesPreview: {
+    marginHorizontal: Spacing.base,
+    padding: Spacing.base,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.xl,
+  },
+  badgesPreviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  badgesRow: { flexDirection: 'row', gap: Spacing.sm },
+  badgeMini: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   menuSection: { marginBottom: Spacing.xl },
   menuGroup: {
     marginHorizontal: Spacing.base,
@@ -182,5 +351,20 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     gap: Spacing.md,
   },
+  menuBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
   menuDivider: { height: 0.5, marginLeft: 52 },
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    gap: Spacing.md,
+  },
 });

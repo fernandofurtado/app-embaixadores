@@ -28,6 +28,7 @@ class EventCreate(BaseModel):
     cover_image_url: str | None = None
     is_featured: bool = False
     region_id: uuid.UUID | None = None
+    checkin_radius_meters: int | None = None
 
 
 class EventUpdate(BaseModel):
@@ -43,6 +44,7 @@ class EventUpdate(BaseModel):
     is_featured: bool | None = None
     is_active: bool | None = None
     cover_image_url: str | None = None
+    checkin_radius_meters: int | None = None
 
 
 class EventResponse(BaseModel):
@@ -64,6 +66,8 @@ class EventResponse(BaseModel):
     is_featured: bool = False
     is_active: bool = True
     participants_count: int = 0
+    checkin_start: datetime | None = None
+    checkin_end: datetime | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -78,3 +82,10 @@ class EventParticipantResponse(BaseModel):
     registered_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class CheckinRequest(BaseModel):
+    """PRD §4.3: Check-in requires event code + optional geo coordinates."""
+    checkin_code: str = Field(..., description="Event check-in code")
+    latitude: float | None = None
+    longitude: float | None = None

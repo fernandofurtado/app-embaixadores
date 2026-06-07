@@ -30,3 +30,8 @@ class BadRequestException(HTTPException):
 class UnauthorizedException(HTTPException):
     def __init__(self, detail: str = "Não autorizado"):
         super().__init__(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
+
+
+class RateLimitException(HTTPException):
+    def __init__(self, detail: str = "Limite de ações excedido. Tente novamente mais tarde."):
+        super().__init__(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=detail)

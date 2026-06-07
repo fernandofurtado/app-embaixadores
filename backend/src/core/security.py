@@ -2,10 +2,11 @@
 ═══════════════════════════════════════════════════════════════
   Security — JWT Verification & Auth Dependencies
   Verifies Supabase-issued JWTs (ES256 or HS256) and provides current user.
+  PRD §7.2: RBAC with 5 distinct roles.
 ═══════════════════════════════════════════════════════════════
 """
 
-import json
+import uuid
 from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Annotated
@@ -14,7 +15,6 @@ import httpx
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwk, jwt
-from jose.utils import base64url_decode
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +23,29 @@ from src.core.database import get_db
 from src.modules.users.models import Profile
 
 security_scheme = HTTPBearer(auto_error=False)
+
+
+# ═══ PRD §7.2 RBAC ROLES ═══
+# SUPER_ADMIN: config global
+# CAMPAIGN_MANAGER: operação
+# REGIONAL_COORDINATOR: só sua região
+# MODERATOR: fila antifraude
+# ANALYST: somente leitura/relatórios
+ROLE_SUPER_ADMIN = "super_admin"
+ROLE_CAMPAIGN_MANAGER = "campaign_manager"
+ROLE_REGIONAL_COORDINATOR = "regional_coordinator"
+ROLE_MODERATOR = "moderator"
+ROLE_ANALYST = "analyst"
+ROLE_PARTICIPANT = "participant"
+
+# Role hierarchy for admin access (higher = more privileged)
+ADMIN_ROLES = {
+    ROLE_SUPER_ADMIN,
+    ROLE_CAMPAIGN_MANAGER,
+    ROLE_REGIONAL_COORDINATOR,
+    ROLE_MODERATOR,
+    ROLE_ANALYST,
+}
 
 
 @lru_cache(maxsize=1)
@@ -139,14 +162,31 @@ async def get_current_user(
 async def get_current_admin(
     current_user: Annotated[Profile, Depends(get_current_user)],
 ) -> Profile:
-    """Dependency that ensures the current user has admin privileges."""
-    admin_roles = {"admin", "super_admin", "coordinator"}
-    if current_user.role not in admin_roles:
+    """Dependency that ensures the current user has any admin role."""
+    if current_user.role not in ADMIN_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acesso restrito a administradores",
         )
     return current_user
+
+
+def require_role(*allowed_roles: str):
+    """
+    Factory dependency for role-based access control (PRD §7.2).
+    Usage: Depends(require_role(ROLE_SUPER_ADMIN, ROLE_CAMPAIGN_MANAGER))
+    """
+    async def role_checker(
+        current_user: Annotated[Profile, Depends(get_current_user)],
+    ) -> Profile:
+        if current_user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Acesso restrito. Papéis permitidos: {', '.join(allowed_roles)}",
+            )
+        return current_user
+
+    return role_checker
 
 
 async def get_optional_user(
