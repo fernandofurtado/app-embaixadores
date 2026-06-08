@@ -25,10 +25,10 @@ import { ColorBar } from '../../components/ui/ColorBar';
 import { useAuthStore } from '../../stores/authStore';
 import { showToast } from '../../components/ui/Toast';
 import {
-  useGoogleAuth,
-  getGoogleIdToken,
+  signInWithGoogle,
   signInWithApple,
   isAppleSignInAvailable,
+  AuthCancelledError,
 } from '../../services/socialAuth';
 import { ApiError } from '../../services/api';
 
@@ -73,7 +73,7 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
   const [appleAvailable, setAppleAvailable] = useState(false);
-  const { login, socialLogin, isLoading } = useAuthStore();
+  const { login, socialLogin, socialSessionLogin, isLoading } = useAuthStore();
 
   // Inline validation state — only show after first submit attempt
   const [touched, setTouched] = useState({ email: false, password: false });
@@ -83,25 +83,9 @@ export default function LoginScreen() {
   const emailError = (touched.email || submitted) ? validateEmail(email) : null;
   const passwordError = (touched.password || submitted) ? validatePassword(password) : null;
 
-  // ═══ GOOGLE AUTH HOOK ═══
-  const { request: googleRequest, response: googleResponse, promptAsync: googlePromptAsync, redirectUri } = useGoogleAuth();
-  console.log('🔑 Google OAuth redirectUri:', redirectUri);
-
   useEffect(() => {
     isAppleSignInAvailable().then(setAppleAvailable);
   }, []);
-
-  useEffect(() => {
-    const idToken = getGoogleIdToken(googleResponse);
-    if (idToken) {
-      handleSocialLogin('google', idToken);
-    } else if (googleResponse?.type === 'error') {
-      setSocialLoading(null);
-      showToast('error', 'Falha na autenticação com Google');
-    } else if (googleResponse?.type === 'dismiss') {
-      setSocialLoading(null);
-    }
-  }, [googleResponse]);
 
   const handleLogin = async () => {
     setSubmitted(true);
@@ -121,24 +105,17 @@ export default function LoginScreen() {
     }
   };
 
-  const handleSocialLogin = async (provider: 'google' | 'apple', idToken: string) => {
-    setSocialLoading(provider);
-    try {
-      await socialLogin(provider, idToken);
-    } catch (error: unknown) {
-      showToast('error', mapLoginError(error));
-    } finally {
-      setSocialLoading(null);
-    }
-  };
-
   const handleGoogleSignIn = async () => {
     setSocialLoading('google');
     try {
-      await googlePromptAsync();
-    } catch {
+      const tokens = await signInWithGoogle();
+      await socialSessionLogin(tokens.access_token, tokens.refresh_token);
+    } catch (error: any) {
+      if (!(error instanceof AuthCancelledError)) {
+        showToast('error', 'Falha na autenticação com Google');
+      }
+    } finally {
       setSocialLoading(null);
-      showToast('error', 'Não foi possível iniciar a autenticação com Google');
     }
   };
 
@@ -146,7 +123,7 @@ export default function LoginScreen() {
     setSocialLoading('apple');
     try {
       const identityToken = await signInWithApple();
-      await handleSocialLogin('apple', identityToken);
+      await socialLogin('apple', identityToken);
     } catch (error: any) {
       setSocialLoading(null);
       if (error.code !== 'ERR_REQUEST_CANCELED' && error.code !== '1001') {

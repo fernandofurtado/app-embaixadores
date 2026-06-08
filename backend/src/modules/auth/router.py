@@ -18,6 +18,7 @@ from src.modules.auth.schemas import (
     RegisterRequest,
     ResetPasswordRequest,
     SocialLoginRequest,
+    SocialSessionRequest,
 )
 from src.modules.auth.service import AuthService
 
@@ -52,6 +53,16 @@ async def social_login(
     """Authenticate via Google or Apple social login using an ID token."""
     service = AuthService(db)
     return await service.social_login(data.provider, data.id_token)
+
+
+@router.post("/social-session", response_model=AuthResponse)
+async def social_session(
+    data: SocialSessionRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Authenticate using Supabase OAuth tokens (from WebBrowser flow)."""
+    service = AuthService(db)
+    return await service.social_session(data.access_token, data.refresh_token)
 
 
 @router.post("/refresh", response_model=AuthResponse)

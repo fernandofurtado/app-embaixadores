@@ -26,10 +26,10 @@ import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../consta
 import { useAuthStore } from '../../stores/authStore';
 import { showToast } from '../../components/ui/Toast';
 import {
-  useGoogleAuth,
-  getGoogleIdToken,
+  signInWithGoogle,
   signInWithApple,
   isAppleSignInAvailable,
+  AuthCancelledError,
 } from '../../services/socialAuth';
 import { ApiError } from '../../services/api';
 
@@ -120,26 +120,11 @@ export default function RegisterScreen() {
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
   const [appleAvailable, setAppleAvailable] = useState(false);
-  const { register, socialLogin, isLoading } = useAuthStore();
-
-  // ═══ GOOGLE AUTH HOOK ═══
-  const { request: googleRequest, response: googleResponse, promptAsync: googlePromptAsync } = useGoogleAuth();
+  const { register, socialLogin, socialSessionLogin, isLoading } = useAuthStore();
 
   useEffect(() => {
     isAppleSignInAvailable().then(setAppleAvailable);
   }, []);
-
-  useEffect(() => {
-    const idToken = getGoogleIdToken(googleResponse);
-    if (idToken) {
-      handleSocialLogin('google', idToken);
-    } else if (googleResponse?.type === 'error') {
-      setSocialLoading(null);
-      showToast('error', 'Falha na autenticação com Google');
-    } else if (googleResponse?.type === 'dismiss') {
-      setSocialLoading(null);
-    }
-  }, [googleResponse]);
 
   // Refs for field navigation
   const emailRef = useRef<TextInput>(null);
@@ -196,25 +181,18 @@ export default function RegisterScreen() {
     }
   };
 
-  const handleSocialLogin = async (provider: 'google' | 'apple', idToken: string) => {
-    setSocialLoading(provider);
-    try {
-      await socialLogin(provider, idToken);
-      showToast('success', 'Conta criada com sucesso! 🎉');
-    } catch (error: unknown) {
-      showToast('error', mapRegisterError(error));
-    } finally {
-      setSocialLoading(null);
-    }
-  };
-
   const handleGoogleSignIn = async () => {
     setSocialLoading('google');
     try {
-      await googlePromptAsync();
-    } catch {
+      const tokens = await signInWithGoogle();
+      await socialSessionLogin(tokens.access_token, tokens.refresh_token);
+      showToast('success', 'Conta criada com sucesso! 🎉');
+    } catch (error: any) {
+      if (!(error instanceof AuthCancelledError)) {
+        showToast('error', 'Falha na autenticação com Google');
+      }
+    } finally {
       setSocialLoading(null);
-      showToast('error', 'Não foi possível iniciar a autenticação com Google');
     }
   };
 
@@ -222,7 +200,7 @@ export default function RegisterScreen() {
     setSocialLoading('apple');
     try {
       const identityToken = await signInWithApple();
-      await handleSocialLogin('apple', identityToken);
+      await socialLogin('apple', identityToken);
     } catch (error: any) {
       setSocialLoading(null);
       if (error.code !== 'ERR_REQUEST_CANCELED' && error.code !== '1001') {

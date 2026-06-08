@@ -193,6 +193,13 @@ class ApiService {
     });
   }
 
+  async socialSession(accessToken: string, refreshToken: string) {
+    return this.request<AuthResponse>('/api/v1/auth/social-session', {
+      method: 'POST',
+      body: { access_token: accessToken, refresh_token: refreshToken },
+    });
+  }
+
   async refreshToken(refreshToken: string) {
     return this.request<{ access_token: string; refresh_token: string }>('/api/v1/auth/refresh', {
       method: 'POST',

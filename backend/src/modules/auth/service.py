@@ -257,6 +257,76 @@ class AuthService:
             "user_id": str(profile.id),
         }
 
+    async def social_session(self, access_token: str, refresh_token: str) -> dict:
+        """
+        Handle social login when Supabase already completed the OAuth flow.
+        Used by the Expo Go WebBrowser approach where Supabase handles Google/Apple
+        OAuth and returns tokens directly. This method ensures a local Profile exists.
+        """
+        try:
+            user_response = self.supabase.auth.get_user(access_token)
+        except Exception as e:
+            raise UnauthorizedException(
+                f"Token de sessão inválido: {e!s}"
+            ) from e
+
+        user = user_response.user
+        if not user:
+            raise UnauthorizedException("Usuário não encontrado na sessão")
+
+        user_id = uuid.UUID(user.id)
+
+        # Check if we already have a local profile
+        result = await self.db.execute(select(Profile).where(Profile.id == user_id))
+        profile = result.scalar_one_or_none()
+
+        if not profile:
+            # First social login — create local profile from Supabase user metadata
+            user_meta = user.user_metadata or {}
+            full_name = (
+                user_meta.get("full_name")
+                or user_meta.get("name")
+                or user.email
+                or "Usuário"
+            )
+            email = user.email or user_meta.get("email", "")
+
+            # Get the initial level (Apoiador)
+            level_result = await self.db.execute(
+                select(Level).where(Level.order_index == 1)
+            )
+            initial_level = level_result.scalar_one_or_none()
+
+            profile = Profile(
+                id=user_id,
+                full_name=full_name,
+                email=email,
+                avatar_url=user_meta.get("avatar_url") or user_meta.get("picture"),
+                current_level_id=initial_level.id if initial_level else None,
+                referral_code=str(uuid.uuid4())[:8].upper(),
+                terms_accepted_at=datetime.now(timezone.utc),
+            )
+            self.db.add(profile)
+
+            # Auto-grant data_processing consent (user accepted provider ToS)
+            consent = Consent(
+                user_id=profile.id,
+                consent_type="data_processing",
+                version="1.0",
+                granted=True,
+                granted_at=datetime.now(timezone.utc),
+            )
+            self.db.add(consent)
+
+            await self.db.flush()
+
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "user_id": str(profile.id),
+        }
+
     async def forgot_password(self, email: str) -> dict:
         """
         Request a password reset email via Supabase.

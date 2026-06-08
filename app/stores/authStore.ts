@@ -21,6 +21,7 @@ interface AuthState {
 
   login: (email: string, password: string) => Promise<void>;
   socialLogin: (provider: 'google' | 'apple', idToken: string) => Promise<void>;
+  socialSessionLogin: (accessToken: string, refreshToken: string) => Promise<void>;
   register: (data: {
     full_name: string;
     email: string;
@@ -75,6 +76,27 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
         try {
           const result = await api.socialLogin(provider, idToken);
+          api.setToken(result.access_token);
+
+          const profile = await api.getMyProfile();
+
+          set({
+            accessToken: result.access_token,
+            refreshToken: result.refresh_token,
+            user: profile,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+        } catch (error) {
+          set({ isLoading: false });
+          throw error;
+        }
+      },
+
+      socialSessionLogin: async (accessToken: string, refreshToken: string) => {
+        set({ isLoading: true });
+        try {
+          const result = await api.socialSession(accessToken, refreshToken);
           api.setToken(result.access_token);
 
           const profile = await api.getMyProfile();

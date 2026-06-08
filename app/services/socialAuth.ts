@@ -1,52 +1,100 @@
 /**
  * ═══════════════════════════════════════════════════════════════
  *  Social Auth Service — Google & Apple Sign In
- *  Uses expo-auth-session (Google) and expo-apple-authentication (Apple)
- *  to obtain ID tokens, then sends them to the backend.
+ *  Google: Uses Supabase OAuth flow via WebBrowser (works in Expo Go)
+ *  Apple: Uses expo-apple-authentication (native iOS)
  * ═══════════════════════════════════════════════════════════════
  */
 
 import { Platform } from 'react-native';
-import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
-import { type AuthSessionResult, makeRedirectUri } from 'expo-auth-session';
 
-// ═══ GOOGLE CONFIG ═══
-const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '';
-const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
-const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || '';
+// ═══ SUPABASE CONFIG ═══
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+
+// Deep link scheme for OAuth redirect
+const REDIRECT_URI = 'embaixadores://auth/callback';
 
 /**
- * Hook that returns the Google Auth request configuration.
- * Must be called at the component level (it's a hook).
+ * Sign in with Google via Supabase OAuth flow.
+ * Opens a browser to Google's consent screen via Supabase,
+ * then returns the Supabase access/refresh tokens.
+ *
+ * Flow:
+ * 1. Opens ${SUPABASE_URL}/auth/v1/authorize?provider=google
+ * 2. Google authenticates → redirects to Supabase callback
+ * 3. Supabase processes → redirects to embaixadores://auth/callback#access_token=...
+ * 4. WebBrowser intercepts the redirect and returns the URL
  */
-export function useGoogleAuth() {
-  const redirectUri = makeRedirectUri({
-    scheme: 'embaixadores',
-    preferLocalhost: true,
-  });
+export async function signInWithGoogle(): Promise<{
+  access_token: string;
+  refresh_token: string;
+}> {
+  // Ensure any previous browser sessions are dismissed
+  WebBrowser.maybeCompleteAuthSession();
 
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: GOOGLE_CLIENT_ID,
-    iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
-    androidClientId: GOOGLE_ANDROID_CLIENT_ID || undefined,
-    redirectUri,
-  });
+  const authUrl = `${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(REDIRECT_URI)}`;
 
-  return { request, response, promptAsync, redirectUri };
+  const result = await WebBrowser.openAuthSessionAsync(authUrl, REDIRECT_URI);
+
+  if (result.type !== 'success' || !result.url) {
+    throw new AuthCancelledError();
+  }
+
+  // Parse tokens from the URL fragment: embaixadores://auth/callback#access_token=...&refresh_token=...
+  const tokens = parseSupabaseTokens(result.url);
+
+  if (!tokens.access_token || !tokens.refresh_token) {
+    throw new Error('Não foi possível obter os tokens de autenticação');
+  }
+
+  return tokens;
 }
 
 /**
- * Extract the id_token from a successful Google auth response.
+ * Parse Supabase tokens from the redirect URL.
+ * Supabase returns tokens in the URL fragment (hash):
+ * embaixadores://auth/callback#access_token=xxx&refresh_token=yyy&token_type=bearer&...
  */
-export function getGoogleIdToken(
-  response: AuthSessionResult | null
-): string | null {
-  if (response?.type === 'success') {
-    return response.params?.id_token || null;
+function parseSupabaseTokens(url: string): {
+  access_token: string;
+  refresh_token: string;
+} {
+  let fragment = '';
+
+  // The fragment can be after # in the URL
+  const hashIndex = url.indexOf('#');
+  if (hashIndex !== -1) {
+    fragment = url.substring(hashIndex + 1);
   }
-  return null;
+
+  // Sometimes Supabase puts them as query params instead
+  if (!fragment) {
+    const queryIndex = url.indexOf('?');
+    if (queryIndex !== -1) {
+      fragment = url.substring(queryIndex + 1);
+    }
+  }
+
+  const params = new URLSearchParams(fragment);
+
+  return {
+    access_token: params.get('access_token') || '',
+    refresh_token: params.get('refresh_token') || '',
+  };
+}
+
+/**
+ * Custom error for when user cancels the auth flow.
+ */
+export class AuthCancelledError extends Error {
+  code = 'ERR_REQUEST_CANCELED';
+  constructor() {
+    super('Autenticação cancelada pelo usuário');
+    this.name = 'AuthCancelledError';
+  }
 }
 
 /**

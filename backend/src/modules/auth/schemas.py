@@ -54,6 +54,12 @@ class SocialLoginRequest(BaseModel):
     id_token: str = Field(..., description="ID token obtained from the provider SDK")
 
 
+class SocialSessionRequest(BaseModel):
+    """Social login when Supabase already handled OAuth (e.g. Expo Go WebBrowser flow)."""
+    access_token: str = Field(..., description="Supabase access token from OAuth flow")
+    refresh_token: str = Field(..., description="Supabase refresh token from OAuth flow")
+
+
 class ForgotPasswordRequest(BaseModel):
     """Request password reset email."""
     email: EmailStr
