@@ -206,7 +206,7 @@ export default function MissionsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* ═══ TABS ═══ */}
-      <View style={[styles.tabsContainer, { paddingTop: insets.top + 56 }]}>
+      <View style={[styles.tabsContainer, { paddingTop: Spacing.base }]}>
         {tabs.map((tab) => (
           <Pressable
             key={tab.key}

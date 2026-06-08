@@ -76,7 +76,7 @@ export default function HomeScreen() {
     return (
       <ScrollView
         style={[styles.container, { backgroundColor: theme.background }]}
-        contentContainerStyle={{ paddingTop: insets.top + 100, paddingBottom: 120 }}
+        contentContainerStyle={{ paddingTop: Spacing.base, paddingBottom: 120 }}
       >
         <View style={[styles.heroCard, { backgroundColor: theme.surface }, Shadows.lg]}>
           <SkeletonHero />
@@ -94,7 +94,7 @@ export default function HomeScreen() {
     return (
       <ScrollView
         style={[styles.container, { backgroundColor: theme.background }]}
-        contentContainerStyle={{ paddingTop: insets.top + 100, paddingBottom: 120 }}
+        contentContainerStyle={{ paddingTop: Spacing.base, paddingBottom: 120 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
         <ErrorState
@@ -108,7 +108,7 @@ export default function HomeScreen() {
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.background }]}
-      contentContainerStyle={{ paddingTop: insets.top + 100, paddingBottom: 120 }}
+      contentContainerStyle={{ paddingTop: Spacing.base, paddingBottom: 120 }}
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
     >
@@ -253,10 +253,9 @@ export default function HomeScreen() {
           Ações Rápidas
         </Text>
         <View style={styles.quickActions}>
-          <QuickAction theme={theme} icon="share" label="Compartilhar" color={Colors.primary} onPress={() => router.push('/content')} />
-          <QuickAction theme={theme} icon="group-add" label="Convidar" color={Colors.success} onPress={() => router.push('/invitations' as any)} />
-          <QuickAction theme={theme} icon="library-books" label="Materiais" color={Colors.themes.science} onPress={() => router.push('/content')} />
-          <QuickAction theme={theme} icon="notifications" label="Avisos" color={Colors.accent} onPress={() => router.push('/notifications' as any)} />
+          <QuickAction theme={theme} icon="group-add" label="Convidar" color={Colors.success} onPress={() => router.push('/(tabs)/invitations' as any)} />
+          <QuickAction theme={theme} icon="library-books" label="Materiais" color={Colors.themes.science} onPress={() => router.push('/(tabs)/content' as any)} />
+          <QuickAction theme={theme} icon="notifications" label="Avisos" color={Colors.accent} onPress={() => router.push('/(tabs)/notifications' as any)} />
         </View>
       </View>
     </ScrollView>

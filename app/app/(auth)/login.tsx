@@ -9,9 +9,11 @@ import { Link, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -71,7 +73,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
+  const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | 'facebook' | null>(null);
   const [appleAvailable, setAppleAvailable] = useState(false);
   const { login, socialLogin, socialSessionLogin, isLoading } = useAuthStore();
 
@@ -132,23 +134,69 @@ export default function LoginScreen() {
     }
   };
 
+  const handleFacebookSignIn = async () => {
+    setSocialLoading('facebook');
+    try {
+      // TODO: Implementar Facebook Login SDK
+      showToast('info', 'Login com Facebook será implementado em breve');
+    } catch {
+      showToast('error', 'Falha na autenticação com Facebook');
+    } finally {
+      setSocialLoading(null);
+    }
+  };
+
   const isBusy = isLoading || socialLoading !== null;
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}
+      style={[styles.container, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.content}>
-        {/* ═══ HEADER — Logo Inácio estilizado ═══ */}
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <MaterialIcons name="groups" size={48} color={Colors.primary} />
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + Spacing.base }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* ═══ BRANDED HEADER — Identidade visual Inácio ═══ */}
+        <View style={styles.brandHeader}>
+          {/* Foto do candidato — destaque grande */}
+          <Image
+            source={require('../../assets/brand/logo-inacio.png')}
+            style={styles.candidatePhoto}
+            resizeMode="cover"
+          />
+
+          {/* DEP. FEDERAL */}
+          <Text style={[styles.depLabel, { color: isDark ? '#D4DFE2' : '#1D1D1F' }]}>
+            DEP. FEDERAL
+          </Text>
+
+          {/* INÁCIO — letras coloridas da campanha */}
+          <View style={styles.inacioRow}>
+            <Text style={[styles.inacioLetter, { color: '#E33431' }]}>I</Text>
+            <Text style={[styles.inacioLetter, { color: '#E33431' }]}>N</Text>
+            <Text style={[styles.inacioLetter, { color: '#FAD549' }]}>Á</Text>
+            <Text style={[styles.inacioLetter, { color: '#4DAA35' }]}>C</Text>
+            <Text style={[styles.inacioLetter, { color: '#2171BA' }]}>I</Text>
+            <Text style={[styles.inacioLetter, { color: '#E33431' }]}>O</Text>
           </View>
-          <Text style={[Typography.largeTitle, { color: theme.text }]}>Rede de</Text>
-          <Text style={[Typography.largeTitle, { color: Colors.primary }]}>Embaixadores</Text>
-          <ColorBar height={4} style={{ width: 120, borderRadius: 2, marginTop: Spacing.md, overflow: 'hidden' }} />
-          <Text style={[Typography.subhead, { color: theme.textSecondary, marginTop: Spacing.md }]}>
+
+          {/* Badge 6565 */}
+          <View style={styles.numberBadge}>
+            <Text style={styles.numberText}>6565</Text>
+          </View>
+
+          {/* Barra de cores */}
+          <ColorBar height={4} style={{ width: 140, borderRadius: 2, marginTop: Spacing.md, overflow: 'hidden' }} />
+
+          {/* Nome do App */}
+          <Text style={[styles.appName, { color: theme.text }]}>
+            Rede de Embaixadores
+          </Text>
+
+          {/* Slogan */}
+          <Text style={[Typography.subhead, { color: theme.textSecondary, textAlign: 'center' }]}>
             Junte-se a nós. Faça parte da mudança.
           </Text>
         </View>
@@ -273,32 +321,7 @@ export default function LoginScreen() {
 
         {/* ═══ SOCIAL LOGIN ═══ */}
         <View style={styles.socialButtons}>
-          {appleAvailable && (
-            <Pressable
-              style={({ pressed }) => [
-                styles.socialButton,
-                {
-                  backgroundColor: theme.surface,
-                  borderColor: theme.border,
-                  opacity: pressed ? 0.85 : 1,
-                },
-                isBusy && styles.buttonDisabled,
-              ]}
-              onPress={handleAppleSignIn}
-              disabled={isBusy}
-              accessibilityRole="button"
-              accessibilityLabel="Entrar com Apple"
-            >
-              {socialLoading === 'apple' ? (
-                <ActivityIndicator size="small" color={theme.text} />
-              ) : (
-                <>
-                  <MaterialIcons name="apple" size={24} color={theme.text} />
-                  <Text style={[Typography.subhead, { color: theme.text, fontWeight: '600' }]}>Apple</Text>
-                </>
-              )}
-            </Pressable>
-          )}
+          {/* ═══ GOOGLE ═══ */}
           <Pressable
             style={({ pressed }) => [
               styles.socialButton,
@@ -318,8 +341,68 @@ export default function LoginScreen() {
               <ActivityIndicator size="small" color={Colors.accent} />
             ) : (
               <>
-                <MaterialIcons name="mail" size={24} color={Colors.accent} />
-                <Text style={[Typography.subhead, { color: theme.text, fontWeight: '600' }]}>Google</Text>
+                <View style={styles.googleLogoContainer}>
+                  <Text style={styles.googleG}>G</Text>
+                </View>
+                <Text style={[Typography.subhead, { color: theme.text, fontWeight: '600' }]}>Entrar com Google</Text>
+              </>
+            )}
+          </Pressable>
+
+          {/* ═══ FACEBOOK ═══ */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.socialButton,
+              {
+                backgroundColor: '#1877F2',
+                borderColor: '#1877F2',
+                opacity: pressed ? 0.85 : 1,
+              },
+              isBusy && styles.buttonDisabled,
+            ]}
+            onPress={handleFacebookSignIn}
+            disabled={isBusy}
+            accessibilityRole="button"
+            accessibilityLabel="Entrar com Facebook"
+          >
+            {socialLoading === 'facebook' ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <View style={styles.fbLogoContainer}>
+                  <Text style={styles.fbF}>f</Text>
+                </View>
+                <Text style={[Typography.subhead, { color: '#FFFFFF', fontWeight: '600' }]}>Entrar com Facebook</Text>
+              </>
+            )}
+          </Pressable>
+
+          {/* ═══ APPLE ═══ */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.socialButton,
+              {
+                backgroundColor: isDark ? '#FFFFFF' : '#000000',
+                borderColor: isDark ? '#FFFFFF' : '#000000',
+                opacity: pressed ? 0.85 : 1,
+              },
+              isBusy && styles.buttonDisabled,
+            ]}
+            onPress={handleAppleSignIn}
+            disabled={isBusy}
+            accessibilityRole="button"
+            accessibilityLabel="Entrar com Apple"
+          >
+            {socialLoading === 'apple' ? (
+              <ActivityIndicator size="small" color={isDark ? '#000' : '#fff'} />
+            ) : (
+              <>
+                <Image
+                  source={require('../../assets/brand/apple-logo-white.png')}
+                  style={{ width: 18, height: 22, tintColor: isDark ? '#000000' : '#FFFFFF' }}
+                  resizeMode="contain"
+                />
+                <Text style={[Typography.subhead, { color: isDark ? '#000000' : '#FFFFFF', fontWeight: '600' }]}>Entrar com Apple</Text>
               </>
             )}
           </Pressable>
@@ -334,33 +417,74 @@ export default function LoginScreen() {
             </Pressable>
           </Link>
         </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { flex: 1, paddingHorizontal: Spacing.xl, justifyContent: 'center' },
-  header: { alignItems: 'center', marginBottom: Spacing['2xl'] },
-  logoContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: Colors.primary + '12',
+  scrollContent: { paddingHorizontal: Spacing.xl },
+
+  /* ═══ BRANDED HEADER ═══ */
+  brandHeader: {
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.base,
+    marginBottom: Spacing.lg,
   },
-  form: { gap: Spacing.base },
+  candidatePhoto: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: '#F1F2F4',
+    marginBottom: Spacing.sm,
+  },
+  appName: {
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    marginTop: Spacing.sm,
+    marginBottom: 2,
+  },
+  depLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: -2,
+  },
+  inacioRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  inacioLetter: {
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  numberBadge: {
+    backgroundColor: '#E33431',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginTop: Spacing.xs,
+  },
+  numberText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+
+  /* ═══ FORM ═══ */
+  form: { gap: Spacing.sm },
   inputContainer: {
     borderWidth: 1,
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
   },
-  inputLabel: { ...Typography.caption1, marginBottom: Spacing.xs },
-  input: { ...Typography.body, paddingVertical: Spacing.xs },
+  inputLabel: { ...Typography.caption1, marginBottom: 2 },
+  input: { ...Typography.body, paddingVertical: 2 },
   passwordRow: { flexDirection: 'row', alignItems: 'center' },
   errorRow: {
     flexDirection: 'row',
@@ -370,20 +494,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xs,
   },
   button: {
-    paddingVertical: Spacing.base,
+    paddingVertical: Spacing.md,
     borderRadius: BorderRadius.pill,
     alignItems: 'center',
-    marginTop: Spacing.sm,
+    marginTop: Spacing.xs,
     ...Shadows.md,
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { ...Typography.headline, color: '#FFFFFF' },
-  forgotButton: { alignItems: 'center', paddingVertical: Spacing.sm, minHeight: 44, justifyContent: 'center' },
-  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: Spacing.lg },
+  forgotButton: { alignItems: 'center', paddingVertical: Spacing.xs, minHeight: 36, justifyContent: 'center' },
+
+  /* ═══ DIVIDER ═══ */
+  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: Spacing.base },
   dividerLine: { flex: 1, height: 1 },
-  socialButtons: { flexDirection: 'row', gap: Spacing.base },
+
+  /* ═══ SOCIAL ═══ */
+  socialButtons: { gap: Spacing.sm },
   socialButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -391,7 +518,36 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.pill,
     borderWidth: 1,
-    minHeight: 48,
+    minHeight: 46,
   },
-  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: Spacing['2xl'] },
+  googleLogoContainer: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#4285F4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleG: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginTop: -1,
+  },
+  fbLogoContainer: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fbF: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#1877F2',
+    marginTop: -1,
+  },
+
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: Spacing.xl },
 });

@@ -1,16 +1,16 @@
 /**
  * ═══════════════════════════════════════════════════════════════
- *  Tabs Layout — Bottom navigation with notification badge
+ *  Tabs Layout — Bottom navigation with AppHeader + notification badge
+ *  Usa AppHeader com logo do candidato em todas as telas autenticadas
  * ═══════════════════════════════════════════════════════════════
  */
 
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform, useColorScheme, View, Text, type ColorValue } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { useColorScheme, View, type ColorValue } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Colors, Typography } from '../../constants/theme';
-import { ColorBar } from '../../components/ui/ColorBar';
+import { Colors } from '../../constants/theme';
+import { AppHeader } from '../../components/ui/AppHeader';
 import api from '../../services/api';
 
 type IconName = React.ComponentProps<typeof MaterialIcons>['name'];
@@ -23,6 +23,7 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const theme = isDark ? Colors.dark : Colors.light;
+  const router = useRouter();
 
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -46,27 +47,14 @@ export default function TabLayout() {
     <View style={{ flex: 1 }}>
       <Tabs
         screenOptions={{
-          headerShown: true,
-          headerTransparent: Platform.OS === 'ios',
-          headerBackground: Platform.OS === 'ios'
-            ? () => (
-                <View style={{ flex: 1 }}>
-                  <BlurView
-                    tint={isDark ? 'systemChromeMaterialDark' : 'systemChromeMaterial'}
-                    intensity={100}
-                    style={{ flex: 1 }}
-                  />
-                  <ColorBar height={3} />
-                </View>
-              )
-            : () => (
-                <View style={{ flex: 1 }}>
-                  <View style={{ flex: 1, backgroundColor: theme.surface }} />
-                  <ColorBar height={3} />
-                </View>
-              ),
-          headerStyle: { elevation: 0, shadowOpacity: 0 },
-          headerTintColor: theme.text,
+          header: ({ options }) => (
+            <AppHeader
+              title={options.headerTitle as string || options.title}
+              unreadCount={unreadCount}
+              onLogoPress={() => router.push('/(tabs)/home')}
+              onNotificationPress={() => router.push('/(tabs)/notifications' as any)}
+            />
+          ),
           tabBarActiveTintColor: Colors.primary,
           tabBarInactiveTintColor: theme.textTertiary,
           tabBarStyle: {
@@ -75,25 +63,6 @@ export default function TabLayout() {
             borderTopWidth: 0.5,
           },
           tabBarLabelStyle: { fontSize: 10, fontWeight: '600' as const },
-          // Notification badge in header
-          headerRight: () =>
-            unreadCount > 0 ? (
-              <View style={{ marginRight: 16 }}>
-                <View style={{
-                  backgroundColor: Colors.accent,
-                  borderRadius: 10,
-                  minWidth: 20,
-                  height: 20,
-                  paddingHorizontal: 6,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                  <Text style={{ ...Typography.caption2, color: '#fff', fontWeight: '700' }}>
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </Text>
-                </View>
-              </View>
-            ) : null,
         }}
       >
         <Tabs.Screen
@@ -130,6 +99,29 @@ export default function TabLayout() {
           options={{
             title: 'Perfil',
             tabBarIcon: ({ color, size }) => <TabBarIcon name="person" color={color} size={size} />,
+          }}
+        />
+
+        {/* ═══ TELAS OCULTAS — Ações Rápidas (sem ícone no tab bar) ═══ */}
+        <Tabs.Screen
+          name="notifications"
+          options={{
+            title: 'Notificações',
+            href: null, // oculta do tab bar
+          }}
+        />
+        <Tabs.Screen
+          name="invitations"
+          options={{
+            title: 'Convites',
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="content"
+          options={{
+            title: 'Materiais',
+            href: null,
           }}
         />
       </Tabs>

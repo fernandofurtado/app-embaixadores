@@ -1,8 +1,9 @@
 /**
  * ═══════════════════════════════════════════════════════════════
  *  Onboarding Screen — Welcome slides (Design Inácio)
+ *  Slide 1: ImageBackground com peça colorida + gradiente
+ *  Slides 2-4: Layout limpo com ícones e fundo claro
  *  Only shown once (flag saved in AsyncStorage)
- *  Fase 2: RF-ONB-03/04 — Acessibilidade + ajustes de fluxo
  * ═══════════════════════════════════════════════════════════════
  */
 
@@ -13,6 +14,7 @@ import {
   Animated,
   Dimensions,
   FlatList,
+  ImageBackground,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
@@ -22,6 +24,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 import { ColorBar } from '../../components/ui/ColorBar';
@@ -39,6 +42,8 @@ interface Slide {
   subtitle: string;
   description: string;
   accentColor: string;
+  /** Se true, usa ImageBackground com a peça colorida */
+  useImageBg?: boolean;
 }
 
 const SLIDES: Slide[] = [
@@ -48,8 +53,9 @@ const SLIDES: Slide[] = [
     title: 'Bem-vindo à Rede\nde Embaixadores',
     subtitle: 'Conecte-se. Mobilize. Transforme.',
     description:
-      'Uma plataforma que conecta pessoas engajadas em torno de uma causa comum. Junte-se a milhares de embaixadores em todo o Brasil.',
-    accentColor: Colors.primary,
+      'Participe, cumpra missões e ajude a transformar apoio em ação. Junte-se a milhares de embaixadores em todo o Brasil.',
+    accentColor: '#E33431',
+    useImageBg: true,
   },
   {
     id: '2',
@@ -120,7 +126,33 @@ export default function OnboardingScreen() {
     setCurrentIndex(index);
   };
 
-  const renderSlide = ({ item }: { item: Slide }) => (
+  /* ═══ SLIDE COM IMAGEBACKGROUND (Tela 1) ═══ */
+  const renderImageSlide = (item: Slide) => (
+    <View style={[styles.slide, { width: SCREEN_WIDTH }]}>
+      <ImageBackground
+        source={require('../../assets/brand/splash-bg.png')}
+        style={styles.imageBg}
+        resizeMode="cover"
+        accessibilityLabel="Campanha Inácio Arruda"
+      >
+        {/* Gradiente de baixo para cima para legibilidade */}
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.55)']}
+          style={StyleSheet.absoluteFill}
+        />
+
+        {/* Conteúdo sobre a imagem */}
+        <View style={styles.imageContent}>
+          <Text style={styles.imageTitle}>{item.title}</Text>
+          <Text style={styles.imageSubtitle}>{item.subtitle}</Text>
+          <Text style={styles.imageDescription}>{item.description}</Text>
+        </View>
+      </ImageBackground>
+    </View>
+  );
+
+  /* ═══ SLIDE PADRÃO (Telas 2-4) ═══ */
+  const renderDefaultSlide = (item: Slide) => (
     <View style={[styles.slide, { width: SCREEN_WIDTH }]}>
       {/* ═══ ICON CIRCLE ═══ */}
       <View style={[styles.iconCircle, { backgroundColor: item.accentColor + '15' }]}>
@@ -134,12 +166,24 @@ export default function OnboardingScreen() {
     </View>
   );
 
+  const renderSlide = ({ item }: { item: Slide }) => {
+    if (item.useImageBg) {
+      return renderImageSlide(item);
+    }
+    return renderDefaultSlide(item);
+  };
+
+  /* Cor do dot/botão: branco no slide com imagem, cor do slide nos outros */
+  const activeDotColor = SLIDES[currentIndex].useImageBg
+    ? '#FFFFFF'
+    : SLIDES[currentIndex].accentColor;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}>
       {/* ═══ COLOR BAR ═══ */}
       <ColorBar height={4} />
 
-      {/* ═══ SKIP BUTTON — visible on ALL slides (RF-ONB-03) ═══ */}
+      {/* ═══ SKIP BUTTON — visible on ALL slides ═══ */}
       <View style={styles.topBar}>
         <Pressable
           onPress={handleSkip}
@@ -194,7 +238,7 @@ export default function OnboardingScreen() {
                   {
                     width: dotWidth,
                     opacity: dotOpacity,
-                    backgroundColor: SLIDES[currentIndex].accentColor,
+                    backgroundColor: activeDotColor,
                   },
                 ]}
               />
@@ -254,6 +298,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.base,
   },
+
+  /* ═══ SLIDE PADRÃO ═══ */
   slide: {
     flex: 1,
     alignItems: 'center',
@@ -284,6 +330,39 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     maxWidth: 320,
   },
+
+  /* ═══ SLIDE COM IMAGEM (Tela 1) ═══ */
+  imageBg: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'flex-end',
+  },
+  imageContent: {
+    padding: 24,
+    paddingBottom: 32,
+  },
+  imageTitle: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: '900',
+    marginBottom: 8,
+  },
+  imageSubtitle: {
+    color: '#FAD549',   // amarelo institucional para destaque sobre escuro
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  imageDescription: {
+    color: '#F1F2F4',
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '400',
+  },
+
+  /* ═══ BOTTOM CONTROLS ═══ */
   bottomSection: {
     paddingHorizontal: Spacing.xl,
     gap: Spacing.lg,

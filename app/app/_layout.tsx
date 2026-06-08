@@ -16,6 +16,7 @@ import { useAuthStore } from '../stores/authStore';
 import { Colors } from '../constants/theme';
 import { ToastProvider } from '../components/ui/Toast';
 import { RewardOverlay } from '../components/feedback/RewardOverlay';
+import { RichSplash } from '../components/ui/RichSplash';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -30,6 +31,7 @@ export default function RootLayout() {
   const router = useRouter();
 
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
+  const [showRichSplash, setShowRichSplash] = useState(true);
 
   const [fontsLoaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -50,6 +52,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (fontsLoaded && hasSeenOnboarding !== null) {
+      // Esconde o splash nativo — o RichSplash assume a transição visual
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, hasSeenOnboarding]);
@@ -117,6 +120,11 @@ export default function RootLayout() {
       </Stack>
       <ToastProvider />
       <RewardOverlay />
+
+      {/* ═══ RICH SPLASH — Peça colorida da campanha sobre o app ═══ */}
+      {showRichSplash && (
+        <RichSplash onDone={() => setShowRichSplash(false)} />
+      )}
     </>
   );
 }

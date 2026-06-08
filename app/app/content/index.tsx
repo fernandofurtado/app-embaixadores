@@ -92,23 +92,11 @@ export default function ContentLibraryScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* ═══ HEADER ═══ */}
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.base, backgroundColor: theme.surface }]}>
-        <View style={styles.headerRow}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={24} color={Colors.primary} />
-          </Pressable>
-        </View>
-        <Text style={[Typography.largeTitle, { color: theme.text }]}>Materiais</Text>
-        <Text style={[Typography.subhead, { color: theme.textSecondary, marginTop: Spacing.xs }]}>
-          Conteúdos prontos para compartilhar
-        </Text>
-
-        {/* ═══ FILTER CHIPS ═══ */}
+      {/* ═══ FILTER CHIPS ═══ */}
+      <View style={[styles.filtersContainer, { backgroundColor: theme.surface }]}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={styles.filtersScroll}
           contentContainerStyle={styles.filtersContent}
         >
           {FILTER_OPTIONS.map((filter) => (
@@ -239,21 +227,9 @@ export default function ContentLibraryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
+  filtersContainer: {
     paddingHorizontal: Spacing.base,
-    paddingBottom: Spacing.base,
-    ...Shadows.sm,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  backButton: {
-    paddingVertical: Spacing.xs,
-  },
-  filtersScroll: {
-    marginTop: Spacing.base,
+    paddingVertical: Spacing.sm,
   },
   filtersContent: {
     gap: Spacing.sm,

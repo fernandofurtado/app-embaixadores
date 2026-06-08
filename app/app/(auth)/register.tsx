@@ -10,6 +10,7 @@ import { Link, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -118,7 +119,7 @@ export default function RegisterScreen() {
 
   const [submitted, setSubmitted] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
+  const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | 'facebook' | null>(null);
   const [appleAvailable, setAppleAvailable] = useState(false);
   const { register, socialLogin, socialSessionLogin, isLoading } = useAuthStore();
 
@@ -206,6 +207,18 @@ export default function RegisterScreen() {
       if (error.code !== 'ERR_REQUEST_CANCELED' && error.code !== '1001') {
         showToast('error', 'Falha na autenticação com Apple');
       }
+    }
+  };
+
+  const handleFacebookSignIn = async () => {
+    setSocialLoading('facebook');
+    try {
+      // TODO: Implementar Facebook Login SDK
+      showToast('info', 'Login com Facebook será implementado em breve');
+    } catch {
+      showToast('error', 'Falha na autenticação com Facebook');
+    } finally {
+      setSocialLoading(null);
     }
   };
 
@@ -324,32 +337,7 @@ export default function RegisterScreen() {
 
         {/* ═══ SOCIAL LOGIN ═══ */}
         <View style={styles.socialButtons}>
-          {appleAvailable && (
-            <Pressable
-              style={({ pressed }) => [
-                styles.socialButton,
-                {
-                  backgroundColor: theme.surface,
-                  borderColor: theme.border,
-                  opacity: pressed ? 0.85 : 1,
-                },
-                isBusy && styles.buttonDisabled,
-              ]}
-              onPress={handleAppleSignIn}
-              disabled={isBusy}
-              accessibilityRole="button"
-              accessibilityLabel="Cadastrar com Apple"
-            >
-              {socialLoading === 'apple' ? (
-                <ActivityIndicator size="small" color={theme.text} />
-              ) : (
-                <>
-                  <MaterialIcons name="apple" size={24} color={theme.text} />
-                  <Text style={[Typography.subhead, { color: theme.text, fontWeight: '600' }]}>Apple</Text>
-                </>
-              )}
-            </Pressable>
-          )}
+          {/* ═══ GOOGLE ═══ */}
           <Pressable
             style={({ pressed }) => [
               styles.socialButton,
@@ -369,8 +357,68 @@ export default function RegisterScreen() {
               <ActivityIndicator size="small" color={Colors.accent} />
             ) : (
               <>
-                <MaterialIcons name="mail" size={24} color={Colors.accent} />
-                <Text style={[Typography.subhead, { color: theme.text, fontWeight: '600' }]}>Google</Text>
+                <View style={styles.googleLogoContainer}>
+                  <Text style={styles.googleG}>G</Text>
+                </View>
+                <Text style={[Typography.subhead, { color: theme.text, fontWeight: '600' }]}>Cadastrar com Google</Text>
+              </>
+            )}
+          </Pressable>
+
+          {/* ═══ FACEBOOK ═══ */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.socialButton,
+              {
+                backgroundColor: '#1877F2',
+                borderColor: '#1877F2',
+                opacity: pressed ? 0.85 : 1,
+              },
+              isBusy && styles.buttonDisabled,
+            ]}
+            onPress={handleFacebookSignIn}
+            disabled={isBusy}
+            accessibilityRole="button"
+            accessibilityLabel="Cadastrar com Facebook"
+          >
+            {socialLoading === 'facebook' ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <View style={styles.fbLogoContainer}>
+                  <Text style={styles.fbF}>f</Text>
+                </View>
+                <Text style={[Typography.subhead, { color: '#FFFFFF', fontWeight: '600' }]}>Cadastrar com Facebook</Text>
+              </>
+            )}
+          </Pressable>
+
+          {/* ═══ APPLE ═══ */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.socialButton,
+              {
+                backgroundColor: isDark ? '#FFFFFF' : '#000000',
+                borderColor: isDark ? '#FFFFFF' : '#000000',
+                opacity: pressed ? 0.85 : 1,
+              },
+              isBusy && styles.buttonDisabled,
+            ]}
+            onPress={handleAppleSignIn}
+            disabled={isBusy}
+            accessibilityRole="button"
+            accessibilityLabel="Cadastrar com Apple"
+          >
+            {socialLoading === 'apple' ? (
+              <ActivityIndicator size="small" color={isDark ? '#000' : '#fff'} />
+            ) : (
+              <>
+                <Image
+                  source={require('../../assets/brand/apple-logo-white.png')}
+                  style={{ width: 18, height: 22, tintColor: isDark ? '#000000' : '#FFFFFF' }}
+                  resizeMode="contain"
+                />
+                <Text style={[Typography.subhead, { color: isDark ? '#000000' : '#FFFFFF', fontWeight: '600' }]}>Cadastrar com Apple</Text>
               </>
             )}
           </Pressable>
@@ -599,9 +647,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { paddingHorizontal: Spacing.xl },
   header: { marginBottom: Spacing.lg },
-  socialButtons: { flexDirection: 'row', gap: Spacing.base, marginBottom: Spacing.sm },
+  socialButtons: { gap: Spacing.sm, marginBottom: Spacing.sm },
   socialButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -610,6 +657,34 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.pill,
     borderWidth: 1,
     minHeight: 48,
+  },
+  googleLogoContainer: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#4285F4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleG: {
+    fontSize: 14,
+    fontWeight: '800' as const,
+    color: '#FFFFFF',
+    marginTop: -1,
+  },
+  fbLogoContainer: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fbF: {
+    fontSize: 15,
+    fontWeight: '800' as const,
+    color: '#1877F2',
+    marginTop: -1,
   },
   divider: { flexDirection: 'row', alignItems: 'center', marginVertical: Spacing.base },
   dividerLine: { flex: 1, height: 1 },

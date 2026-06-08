@@ -14,8 +14,8 @@ import * as Crypto from 'expo-crypto';
 // ═══ SUPABASE CONFIG ═══
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 
-// Deep link scheme for OAuth redirect
-const REDIRECT_URI = 'embaixadores://auth/callback';
+// Deep link scheme for OAuth redirect — must exactly match Supabase Redirect URLs config
+const REDIRECT_URI = 'embaixadores://';
 
 /**
  * Sign in with Google via Supabase OAuth flow.

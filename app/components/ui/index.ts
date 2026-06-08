@@ -13,3 +13,6 @@ export { Skeleton, SkeletonCard, SkeletonList, SkeletonHero, SkeletonStats } fro
 export { ToastProvider, showToast } from './Toast';
 export { Avatar } from './Avatar';
 export { Input } from './Input';
+export { ColorBar } from './ColorBar';
+export { AppHeader } from './AppHeader';
+export { RichSplash } from './RichSplash';

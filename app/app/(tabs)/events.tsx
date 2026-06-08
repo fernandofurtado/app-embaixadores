@@ -68,7 +68,7 @@ export default function EventsScreen() {
   if (loading && !events) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <View style={{ paddingTop: insets.top + 100, paddingHorizontal: Spacing.base }}>
+        <View style={{ paddingTop: Spacing.base, paddingHorizontal: Spacing.base }}>
           <SkeletonList count={5} />
         </View>
       </View>
@@ -78,7 +78,7 @@ export default function EventsScreen() {
   // ═══ ERROR STATE ═══
   if (error && !events) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top + 100 }]}>
+      <View style={[styles.container, { backgroundColor: theme.background, paddingTop: Spacing.base }]}>
         <ErrorState
           message={error.message || 'Não foi possível carregar os eventos.'}
           onRetry={reload}
@@ -94,7 +94,7 @@ export default function EventsScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={{
           padding: Spacing.base,
-          paddingTop: insets.top + 100,
+          paddingTop: Spacing.base,
           paddingBottom: 120,
         }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}

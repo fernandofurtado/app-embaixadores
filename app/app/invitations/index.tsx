@@ -9,18 +9,15 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
   Share as RNShare,
   StyleSheet,
   Text,
-  TextInput,
   useColorScheme,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 import { useInvitationStore } from '../../stores/invitationStore';
@@ -40,15 +37,11 @@ export default function InvitationsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const theme = isDark ? Colors.dark : Colors.light;
-  const insets = useSafeAreaInsets();
   const router = useRouter();
 
   const user = useAuthStore((s) => s.user);
-  const { tracking, isLoading, loadInvitations, createInvitation } = useInvitationStore();
+  const { tracking, isLoading, loadInvitations } = useInvitationStore();
 
-  const [inviteeEmail, setInviteeEmail] = useState('');
-  const [inviteePhone, setInviteePhone] = useState('');
-  const [creating, setCreating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => { loadInvitations(); }, []);
@@ -57,32 +50,6 @@ export default function InvitationsScreen() {
     setRefreshing(true);
     await loadInvitations();
     setRefreshing(false);
-  };
-
-  const handleCreate = async () => {
-    if (!inviteeEmail && !inviteePhone) {
-      showToast('warning', 'Informe o e-mail ou telefone do convidado');
-      return;
-    }
-    setCreating(true);
-    try {
-      const invite = await createInvitation({
-        invitee_email: inviteeEmail || undefined,
-        invitee_phone: inviteePhone || undefined,
-      });
-
-      // Share the invitation link
-      await RNShare.share({
-        message: `Junte-se à Rede de Embaixadores! Use meu código: ${invite.invite_code}\n\nBaixe o app: https://embaixadores.app/convite/${invite.invite_code}`,
-      });
-
-      setInviteeEmail('');
-      setInviteePhone('');
-      showToast('success', 'Convite enviado com sucesso! 🎉');
-    } catch (error: any) {
-      showToast('error', error.message || 'Falha ao criar convite');
-    }
-    setCreating(false);
   };
 
   const handleShareLink = async () => {
@@ -95,21 +62,10 @@ export default function InvitationsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* ═══ HEADER ═══ */}
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.base }]}>
-        <View style={styles.headerRow}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={24} color={theme.text} />
-          </Pressable>
-          <Text style={[Typography.title2, { color: theme.text }]}>Convites</Text>
-          <View style={{ width: 40 }} />
-        </View>
-      </View>
-
       <FlatList
         data={tracking?.invitations || []}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingHorizontal: Spacing.base, paddingBottom: 120 }}
+        contentContainerStyle={{ paddingHorizontal: Spacing.base, paddingTop: Spacing.base, paddingBottom: 120 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
         ListHeaderComponent={
           <View>
@@ -159,49 +115,6 @@ export default function InvitationsScreen() {
               <MaterialIcons name="share" size={20} color="#fff" />
               <Text style={[Typography.headline, { color: '#fff' }]}>Compartilhar Link de Convite</Text>
             </Pressable>
-
-            {/* ═══ CREATE INVITATION ═══ */}
-            <View style={[styles.createCard, { backgroundColor: theme.surface }, Shadows.sm]}>
-              <Text style={[Typography.headline, { color: theme.text, marginBottom: Spacing.sm }]}>
-                Novo Convite
-              </Text>
-              <TextInput
-                style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceElevated }]}
-                value={inviteeEmail}
-                onChangeText={setInviteeEmail}
-                placeholder="E-mail do convidado"
-                placeholderTextColor={theme.textTertiary}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-              <Text style={[Typography.caption2, { color: theme.textTertiary, textAlign: 'center' }]}>ou</Text>
-              <TextInput
-                style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceElevated }]}
-                value={inviteePhone}
-                onChangeText={setInviteePhone}
-                placeholder="Telefone do convidado"
-                placeholderTextColor={theme.textTertiary}
-                keyboardType="phone-pad"
-              />
-              <Pressable
-                style={({ pressed }) => [
-                  styles.createButton,
-                  { backgroundColor: Colors.success, opacity: pressed ? 0.85 : 1 },
-                  creating && { opacity: 0.6 },
-                ]}
-                onPress={handleCreate}
-                disabled={creating}
-              >
-                {creating ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-                    <MaterialIcons name="person-add" size={18} color="#fff" />
-                    <Text style={[Typography.headline, { color: '#fff' }]}>Enviar Convite</Text>
-                  </View>
-                )}
-              </Pressable>
-            </View>
 
             {/* Invitations list header */}
             {(tracking?.invitations?.length || 0) > 0 && (
@@ -264,21 +177,6 @@ function FunnelStat({ theme, icon, value, label, color }: { theme: any; icon: Ic
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingHorizontal: Spacing.base,
-    paddingBottom: Spacing.base,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   funnelCard: {
     padding: Spacing.lg,
     borderRadius: BorderRadius.xl,
@@ -306,24 +204,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.base,
     borderRadius: BorderRadius.pill,
     marginBottom: Spacing.base,
-  },
-  createCard: {
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.xl,
-    gap: Spacing.sm,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.md,
-    ...Typography.body,
-  },
-  createButton: {
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.pill,
-    alignItems: 'center',
-    marginTop: Spacing.xs,
   },
   inviteCard: {
     flexDirection: 'row',

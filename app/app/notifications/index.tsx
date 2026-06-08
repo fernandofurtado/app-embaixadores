@@ -17,7 +17,6 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 import api from '../../services/api';
@@ -43,12 +42,66 @@ export default function NotificationsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const theme = isDark ? Colors.dark : Colors.light;
-  const insets = useSafeAreaInsets();
   const router = useRouter();
+
+  // ═══ MOCK NOTIFICATIONS ═══
+  const MOCK_NOTIFICATIONS: Notification[] = [
+    {
+      id: 'mock-1',
+      notification_type: 'mission',
+      title: 'Nova missão disponível! 🎯',
+      body: 'Compartilhe 3 publicações da campanha e ganhe 50 pontos.',
+      is_read: false,
+      created_at: new Date(Date.now() - 15 * 60000).toISOString(),
+    },
+    {
+      id: 'mock-2',
+      notification_type: 'event',
+      title: 'Evento amanhã às 18h',
+      body: 'Comício no Parque do Cocó — não esqueça de confirmar presença!',
+      is_read: false,
+      created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+    },
+    {
+      id: 'mock-3',
+      notification_type: 'level_up',
+      title: 'Parabéns! Você subiu de nível 🎉',
+      body: 'Agora você é Mobilizador! Continue acumulando pontos para desbloquear novas recompensas.',
+      is_read: true,
+      created_at: new Date(Date.now() - 6 * 3600000).toISOString(),
+    },
+    {
+      id: 'mock-4',
+      notification_type: 'invite',
+      title: 'Seu convite foi aceito!',
+      body: 'Maria Silva se cadastrou usando seu código. +20 pontos!',
+      is_read: true,
+      created_at: new Date(Date.now() - 24 * 3600000).toISOString(),
+    },
+    {
+      id: 'mock-5',
+      notification_type: 'campaign',
+      title: 'Novo material de campanha',
+      body: 'Nova arte para compartilhar no WhatsApp está disponível na seção Materiais.',
+      is_read: true,
+      created_at: new Date(Date.now() - 48 * 3600000).toISOString(),
+    },
+    {
+      id: 'mock-6',
+      notification_type: 'badge',
+      title: 'Conquista desbloqueada 🏅',
+      body: 'Você ganhou a medalha "Primeiro Convite" por convidar um amigo.',
+      is_read: true,
+      created_at: new Date(Date.now() - 72 * 3600000).toISOString(),
+    },
+  ];
 
   // Fase 5: useAsync instead of silent catch
   const loadNotifications = useCallback(() => api.getNotifications().then(d => d || []), []);
-  const { data: notifications, loading, error, reload } = useAsync<Notification[]>(loadNotifications, []);
+  const { data: apiNotifications, loading, error, reload } = useAsync<Notification[]>(loadNotifications, []);
+
+  // Usa mock se API retornar vazio
+  const notifications = (apiNotifications && apiNotifications.length > 0) ? apiNotifications : MOCK_NOTIFICATIONS;
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = async () => {
@@ -95,27 +148,21 @@ export default function NotificationsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* ═══ HEADER ═══ */}
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.base }]}>
-        <View style={styles.headerRow}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={24} color={theme.text} />
-          </Pressable>
-          <Text style={[Typography.title2, { color: theme.text }]}>Notificações</Text>
-          {unreadCount > 0 ? (
+      {/* ═══ SUB-HEADER — contagem + ler todas ═══ */}
+      <View style={styles.subHeader}>
+        {unreadCount > 0 ? (
+          <>
+            <View style={[styles.unreadBanner, { backgroundColor: Colors.primary + '15' }]}>
+              <Text style={[Typography.subhead, { color: Colors.primary, fontWeight: '600' }]}>
+                {unreadCount} {unreadCount === 1 ? 'nova notificação' : 'novas notificações'}
+              </Text>
+            </View>
             <Pressable onPress={handleMarkAllRead} style={styles.markAllButton}>
               <Text style={[Typography.caption1, { color: Colors.primary }]}>Ler todas</Text>
             </Pressable>
-          ) : (
-            <View style={{ width: 60 }} />
-          )}
-        </View>
-        {unreadCount > 0 && (
-          <View style={[styles.unreadBanner, { backgroundColor: Colors.primary + '15' }]}>
-            <Text style={[Typography.subhead, { color: Colors.primary, fontWeight: '600' }]}>
-              {unreadCount} {unreadCount === 1 ? 'nova notificação' : 'novas notificações'}
-            </Text>
-          </View>
+          </>
+        ) : (
+          <Text style={[Typography.subhead, { color: theme.textSecondary }]}>Todas lidas ✓</Text>
         )}
       </View>
 
@@ -175,20 +222,12 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingHorizontal: Spacing.base,
-    paddingBottom: Spacing.base,
-  },
-  headerRow: {
+  subHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
   },
   markAllButton: {
     paddingHorizontal: Spacing.sm,
