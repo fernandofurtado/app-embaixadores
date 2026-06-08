@@ -226,7 +226,7 @@ export default function MissionDetailScreen() {
         <View style={[styles.header, { backgroundColor: theme.surface }, Shadows.lg]}>
           {mission.is_featured && (
             <View style={[styles.featuredBadge, { backgroundColor: Colors.warning + '20' }]}>
-              <Text style={[Typography.caption1, { color: Colors.warning, fontWeight: '700' }]}><MaterialIcons name="star" size={12} color={Colors.warning} /> DESTAQUE</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><MaterialIcons name="star" size={12} color={Colors.warning} /><Text style={[Typography.caption1, { color: Colors.warning, fontWeight: '700' }]}>DESTAQUE</Text></View>
             </View>
           )}
           <Text style={[Typography.title1, { color: theme.text }]}>{mission.title}</Text>
@@ -256,9 +256,10 @@ export default function MissionDetailScreen() {
         {/* ═══ STEPS (se existir) ═══ */}
         {mission.steps && (
           <View style={[styles.section, { backgroundColor: theme.surface }, Shadows.sm]}>
-            <Text style={[Typography.headline, { color: theme.text, marginBottom: Spacing.sm }]}>
-              <MaterialIcons name="checklist" size={16} color={Colors.primary} /> Passo a passo
-            </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.sm }}>
+              <MaterialIcons name="checklist" size={16} color={Colors.primary} />
+              <Text style={[Typography.headline, { color: theme.text }]}>Passo a passo</Text>
+            </View>
             <Text style={[Typography.body, { color: theme.textSecondary, lineHeight: 24 }]}>
               {mission.steps}
             </Text>
@@ -267,9 +268,10 @@ export default function MissionDetailScreen() {
 
         {/* ═══ VERIFICATION INFO ═══ */}
         <View style={[styles.section, { backgroundColor: theme.surface }, Shadows.sm]}>
-          <Text style={[Typography.headline, { color: theme.text, marginBottom: Spacing.base }]}>
-            <MaterialIcons name="verified" size={16} color={Colors.primary} /> Como comprovar
-          </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.base }}>
+              <MaterialIcons name="verified" size={16} color={Colors.primary} />
+              <Text style={[Typography.headline, { color: theme.text }]}>Como comprovar</Text>
+            </View>
           <View style={[styles.verificationCard, { backgroundColor: verInfo.label === 'Automática' ? Colors.success + '10' : Colors.info + '10' }]}>
             <MaterialIcons name={verInfo.icon} size={24} color={verInfo.label === 'Automática' ? Colors.success : Colors.info} />
             <View style={{ flex: 1 }}>
