@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gerador de Screenshots — App Store</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+    background: #0A0A0F;
+    color: #fff;
+    padding: 32px;
+  }
+  h1 { font-size: 28px; margin-bottom: 8px; }
+  .subtitle { color: #A0A0AB; margin-bottom: 32px; font-size: 15px; }
+  .controls {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 20px;
+    margin-bottom: 40px;
+  }
+  .card {
+    background: #1A1A24;
+    border-radius: 16px;
+    overflow: hidden;
+    transition: transform 0.2s;
+  }
+  .card:hover { transform: translateY(-4px); }
+  .card canvas, .card img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  .card-info {
+    padding: 12px;
+  }
+  .card-info h3 { font-size: 14px; margin-bottom: 4px; }
+  .card-info p { font-size: 11px; color: #6B6B78; margin-bottom: 8px; }
+  .btn {
+    display: inline-block;
+    background: #2171BA;
+    color: #fff;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    text-align: center;
+    text-decoration: none;
+    transition: background 0.2s;
+  }
+  .btn:hover { background: #399BD8; }
+  .btn-all {
+    background: #DC2828;
+    padding: 16px 40px;
+    font-size: 16px;
+    border-radius: 999px;
+    border: none;
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-all:hover { background: #E55050; }
+  .btn-seq {
+    background: #50A03C;
+    padding: 16px 40px;
+    font-size: 16px;
+    border-radius: 999px;
+    border: none;
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-seq:hover { background: #6BC050; }
+  .progress-bar {
+    width: 100%;
+    height: 6px;
+    background: #252530;
+    border-radius: 3px;
+    margin: 16px 0;
+    display: none;
+  }
+  .progress-fill {
+    height: 100%;
+    background: #50A03C;
+    border-radius: 3px;
+    transition: width 0.3s;
+    width: 0%;
+  }
+  .status {
+    padding: 12px 20px;
+    background: #252530;
+    border-radius: 12px;
+    font-size: 14px;
+    color: #50A03C;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .download-links {
+    background: #1A1A24;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 32px;
+  }
+  .download-links h2 { font-size: 18px; margin-bottom: 16px; }
+  .download-links a {
+    display: block;
+    color: #2171BA;
+    text-decoration: none;
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin-bottom: 4px;
+    font-size: 15px;
+    font-weight: 500;
+    transition: background 0.2s;
+  }
+  .download-links a:hover { background: #252530; }
+  .download-links a .check { color: #50A03C; margin-left: 8px; display: none; }
+  .download-links a.downloaded .check { display: inline; }
+  .specs {
+    background: #1A1A24;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .specs table { width: 100%; border-collapse: collapse; }
+  .specs td, .specs th {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid #32323E;
+    font-size: 13px;
+  }
+  .specs th { color: #A0A0AB; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<h1>📱 Gerador de Screenshots — App Store</h1>
+<p class="subtitle">Screenshots <strong>1284 × 2778px</strong> — iPhone 6.5" Display | Clique em cada link abaixo para baixar</p>
+
+<div class="specs">
+  <table>
+    <tr><th>Dimensão</th><th>1284 × 2778 px (portrait)</th></tr>
+    <tr><th>Formato</th><th>PNG</th></tr>
+    <tr><th>Quantidade</th><th>5 screenshots</th></tr>
+  </table>
+</div>
+
+<div class="status" id="status"></div>
+<div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+
+<div class="download-links" id="downloadLinks">
+  <h2>⬇️ Clique em cada link para baixar individualmente:</h2>
+  <div id="linkList">Gerando screenshots...</div>
+</div>
+
+<div class="controls">
+  <button class="btn-seq" id="btnSeq" onclick="downloadSequential()" disabled>📥 Baixar um por um (automático — 3s entre cada)</button>
+</div>
+
+<h2 style="margin-bottom:16px; font-size:18px;">Prévia</h2>
+<div class="grid" id="grid"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+const W = 1284;
+const H = 2778;
+const PHONE_W = 820;
+const PHONE_H = 1700;
+const PHONE_RADIUS = 56;
+const PHONE_BEZEL = 12;
+
+const BRAND = {
+  red: '#DC2828', blue: '#3C50A0', magenta: '#DC508C',
+  yellow: '#F0B400', green: '#50A03C',
+  darkRed: '#C80000', darkBlue: '#2A3878',
+  darkGreen: '#2D7A20', darkPurple: '#7A3F8F',
+  appBg: '#0A0A0F', surface: '#1A1A24',
+  surfaceElevated: '#252530', surfaceHighest: '#32323E',
+  text: '#FFFFFF', textSecondary: '#A0A0AB', textTertiary: '#6B6B78',
+  primary: '#2171BA', success: '#4DAA35',
+  warning: '#FAD549', danger: '#E33431',
+};
+
+// ── Drawing Helpers ──
+function drawGradient(ctx, colors, x, y, w, h) {
+  const g = ctx.createLinearGradient(x, y, x, y + h);
+  g.addColorStop(0, colors[0]); g.addColorStop(1, colors[1]);
+  ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+}
+function drawRR(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
+}
+function drawCircle(ctx, cx, cy, r, color) {
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fillStyle=color; ctx.fill();
+}
+function drawCard(ctx,x,y,w,h,r,bg) {
+  drawRR(ctx,x,y,w,h,r||20); ctx.fillStyle=bg||BRAND.surface; ctx.fill();
+}
+function drawPill(ctx, x, y, text, bg, tc, fs) {
+  fs=fs||20; ctx.font=`bold ${fs}px -apple-system,sans-serif`;
+  const tw=ctx.measureText(text).width; const pw=tw+24; const ph=fs+12;
+  drawRR(ctx,x,y,pw,ph,ph/2); ctx.fillStyle=bg; ctx.fill();
+  ctx.fillStyle=tc||'#fff'; ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillText(text,x+12,y+ph/2+1); return pw;
+}
+function drawStar(ctx,cx,cy,r,color) {
+  ctx.beginPath();
+  for(let i=0;i<5;i++){const a=(i*4*Math.PI)/5-Math.PI/2;const x=cx+r*Math.cos(a);const y=cy+r*Math.sin(a);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}
+  ctx.closePath(); ctx.fillStyle=color; ctx.fill();
+}
+function drawFigure(ctx,cx,cy,arm,color,scale) {
+  drawCircle(ctx,cx,cy-arm*0.7,10*scale,color);
+  ctx.beginPath(); ctx.moveTo(cx-arm,cy-arm*0.3);
+  ctx.quadraticCurveTo(cx,cy+arm*0.6,cx+arm,cy-arm*0.3);
+  ctx.lineWidth=8*scale; ctx.strokeStyle=color; ctx.lineCap='round'; ctx.stroke();
+}
+function drawAppIcon(ctx,cx,cy,size) {
+  const r=size*0.22,x=cx-size/2,y=cy-size/2;
+  ctx.save(); ctx.shadowColor='rgba(0,0,0,0.3)'; ctx.shadowBlur=20; ctx.shadowOffsetY=8;
+  drawRR(ctx,x,y,size,size,r); ctx.fillStyle='#FFFFFF'; ctx.fill(); ctx.restore();
+  const s=size/180;
+  drawStar(ctx,cx,cy+size*0.05-62*s,14*s,BRAND.yellow);
+  drawFigure(ctx,cx,cy+size*0.05-20*s,42*s,BRAND.red,s);
+  drawFigure(ctx,cx-40*s,cy+size*0.05+10*s,28*s,BRAND.blue,s*0.7);
+  drawFigure(ctx,cx+40*s,cy+size*0.05+10*s,28*s,BRAND.magenta,s*0.7);
+  drawFigure(ctx,cx-22*s,cy+size*0.05+40*s,22*s,BRAND.yellow,s*0.55);
+  drawFigure(ctx,cx+22*s,cy+size*0.05+40*s,22*s,BRAND.green,s*0.55);
+}
+function drawPhoneFrame(ctx,px,py) {
+  ctx.save(); ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=60; ctx.shadowOffsetY=20;
+  drawRR(ctx,px,py,PHONE_W,PHONE_H,PHONE_RADIUS); ctx.fillStyle='#2A2A2E'; ctx.fill(); ctx.restore();
+  drawRR(ctx,px+2,py+2,PHONE_W-4,PHONE_H-4,PHONE_RADIUS-2); ctx.fillStyle='#3A3A3E'; ctx.fill();
+  const sx=px+PHONE_BEZEL,sy=py+PHONE_BEZEL,sw=PHONE_W-PHONE_BEZEL*2,sh=PHONE_H-PHONE_BEZEL*2;
+  drawRR(ctx,sx,sy,sw,sh,PHONE_RADIUS-PHONE_BEZEL); ctx.fillStyle=BRAND.appBg; ctx.fill();
+  ctx.save(); ctx.clip();
+  return {sx,sy,sw,sh};
+}
+function drawStatusBar(ctx,sx,sy,sw) {
+  ctx.font='bold 28px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='left';
+  ctx.fillText('9:41',sx+40,sy+18);
+  const dW=180,dH=48,dX=sx+(sw-dW)/2,dY=sy+8;
+  drawRR(ctx,dX,dY,dW,dH,dH/2); ctx.fillStyle='#000'; ctx.fill();
+  ctx.font='bold 24px -apple-system,sans-serif'; ctx.textAlign='right'; ctx.fillStyle='#fff';
+  ctx.fillText('📶  📡  🔋',sx+sw-30,sy+22);
+}
+
+// ══════════════════════════════════════════════════════════════
+// SCREEN RENDERERS
+// ══════════════════════════════════════════════════════════════
+
+function renderLoginScreen(ctx,sx,sy,sw,sh) {
+  const cx=sx+sw/2; let y=sy+80;
+  drawCircle(ctx,cx,y+50,50,BRAND.primary+'30');
+  drawCircle(ctx,cx,y+50,40,BRAND.primary);
+  ctx.font='bold 36px sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.fillText('👥',cx,y+32); y+=120;
+  ctx.font='bold 16px -apple-system,sans-serif'; ctx.fillStyle='#A0A0AB'; ctx.textAlign='center'; ctx.fillText('DEP. FEDERAL',cx,y); y+=28;
+  const letters=[{l:'I',c:'#E33431'},{l:'N',c:'#E33431'},{l:'Á',c:'#FAD549'},{l:'C',c:'#4DAA35'},{l:'I',c:'#2171BA'},{l:'O',c:'#E33431'}];
+  ctx.font='bold 48px -apple-system,sans-serif'; let totalW=0;
+  letters.forEach(l=>totalW+=ctx.measureText(l.l).width+2); let lx=cx-totalW/2; ctx.textAlign='left';
+  letters.forEach(l=>{ctx.fillStyle=l.c;ctx.fillText(l.l,lx,y);lx+=ctx.measureText(l.l).width+2;}); y+=60;
+  drawRR(ctx,cx-40,y,80,32,8); ctx.fillStyle='#E33431'; ctx.fill();
+  ctx.font='bold 20px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.fillText('6565',cx,y+4); y+=48;
+  const barW=160,barH=6,barC=['#E33431','#FAD549','#4DAA35','#2171BA'];
+  barC.forEach((c,i)=>{ctx.fillStyle=c;ctx.fillRect(cx-barW/2+i*(barW/4),y,barW/4,barH);}); y+=20;
+  ctx.font='bold 28px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.fillText('Rede de Embaixadores',cx,y); y+=36;
+  ctx.font='20px -apple-system,sans-serif'; ctx.fillStyle=BRAND.textSecondary; ctx.fillText('Junte-se a nós. Faça parte da mudança.',cx,y); y+=50;
+  // Email
+  drawCard(ctx,sx+30,y,sw-60,70,16,BRAND.surface);
+  ctx.font='16px -apple-system,sans-serif'; ctx.fillStyle=BRAND.textTertiary; ctx.textAlign='left'; ctx.fillText('E-mail',sx+50,y+12);
+  ctx.font='22px -apple-system,sans-serif'; ctx.fillStyle=BRAND.textTertiary+'80'; ctx.fillText('seu@email.com',sx+50,y+38); y+=86;
+  // Password
+  drawCard(ctx,sx+30,y,sw-60,70,16,BRAND.surface);
+  ctx.font='16px -apple-system,sans-serif'; ctx.fillStyle=BRAND.textTertiary; ctx.textAlign='left'; ctx.fillText('Senha',sx+50,y+12);
+  ctx.font='26px -apple-system,sans-serif'; ctx.fillStyle=BRAND.textTertiary+'80'; ctx.fillText('••••••••',sx+50,y+36); y+=90;
+  // Entrar
+  drawRR(ctx,sx+30,y,sw-60,64,32); ctx.fillStyle=BRAND.primary; ctx.fill();
+  ctx.font='bold 24px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.fillText('Entrar',cx,y+18); y+=80;
+  ctx.font='20px -apple-system,sans-serif'; ctx.fillStyle=BRAND.primary; ctx.fillText('Esqueci minha senha',cx,y); y+=44;
+  // Divider
+  ctx.fillStyle=BRAND.textTertiary+'40';
+  ctx.fillRect(sx+30,y+10,(sw-60)/2-80,1); ctx.fillRect(cx+80,y+10,(sw-60)/2-80,1);
+  ctx.font='18px -apple-system,sans-serif'; ctx.fillStyle=BRAND.textTertiary; ctx.fillText('ou continue com',cx,y); y+=40;
+  // Google
+  drawRR(ctx,sx+30,y,sw-60,58,29); ctx.fillStyle='#FFFFFF'; ctx.fill();
+  drawCircle(ctx,sx+70,y+29,14,'#4285F4');
+  ctx.font='bold 20px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.fillText('G',sx+70,y+17);
+  ctx.fillStyle='#1D1D1F'; ctx.fillText('Entrar com Google',cx+10,y+18); y+=70;
+  // Facebook
+  drawRR(ctx,sx+30,y,sw-60,58,29); ctx.fillStyle='#1877F2'; ctx.fill();
+  ctx.font='bold 28px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.fillText('f',sx+70,y+14);
+  ctx.font='bold 20px -apple-system,sans-serif'; ctx.fillText('Entrar com Facebook',cx+10,y+18); y+=70;
+  // Apple
+  drawRR(ctx,sx+30,y,sw-60,58,29); ctx.fillStyle='#000000'; ctx.fill();
+  ctx.font='bold 24px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.fillText('',sx+66,y+16);
+  ctx.font='bold 20px -apple-system,sans-serif'; ctx.fillText('Entrar com Apple',cx+10,y+18); y+=80;
+  // Register
+  ctx.font='20px -apple-system,sans-serif'; ctx.fillStyle=BRAND.textSecondary; ctx.fillText('Ainda não tem conta?',cx-50,y+4);
+  ctx.font='bold 20px -apple-system,sans-serif'; ctx.fillStyle=BRAND.primary; ctx.fillText('Cadastre-se',cx+100,y+4);
+}
+
+function renderHomeScreen(ctx,sx,sy,sw,sh) {
+  const cx=sx+sw/2; let y=sy+80;
+  drawCard(ctx,sx+24,y,sw-48,220,24,BRAND.surface);
+  drawCircle(ctx,sx+64,y+50,32,BRAND.success);
+  ctx.font='bold 28px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.fillText('L',sx+64,y+34);
+  drawCircle(ctx,sx+86,y+72,13,BRAND.success); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke();
+  ctx.font='bold 12px sans-serif'; ctx.fillStyle='#fff'; ctx.fillText('1',sx+86,y+66);
+  ctx.font='bold 28px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.fillText('Olá, Lucas!',sx+110,y+30);
+  drawPill(ctx,sx+110,y+62,'🌱 Apoiador',BRAND.success+'25',BRAND.success,18);
+  ctx.font='18px -apple-system,sans-serif'; ctx.fillStyle=BRAND.textSecondary; ctx.textAlign='left'; ctx.fillText('Progresso para o próximo nível',sx+44,y+112);
+  ctx.textAlign='right'; ctx.font='bold 18px -apple-system,sans-serif'; ctx.fillStyle=BRAND.success; ctx.fillText('45%',sx+sw-68,y+112);
+  drawRR(ctx,sx+44,y+140,sw-88,10,5); ctx.fillStyle=BRAND.surfaceElevated; ctx.fill();
+  drawRR(ctx,sx+44,y+140,(sw-88)*0.45,10,5); ctx.fillStyle=BRAND.success; ctx.fill();
+  ctx.font='16px -apple-system,sans-serif'; ctx.fillStyle=BRAND.textTertiary; ctx.textAlign='left'; ctx.fillText('Faltam 120 pontos para Mobilizador',sx+44,y+164);
+  y+=240;
+  const statW=(sw-48-12)/2,statH=120;
+  const stats=[{i:'⭐',v:'280',l:'Pontos',c:BRAND.warning},{i:'🏁',v:'5',l:'Missões',c:BRAND.success},{i:'🏆',v:'#12',l:'Ranking',c:BRAND.primary},{i:'🎖️',v:'3',l:'Badges',c:'#7A3F8F'}];
+  stats.forEach((s,idx)=>{const col=idx%2,row=Math.floor(idx/2),sX=sx+24+col*(statW+12),sY=y+row*(statH+12);
+    drawCard(ctx,sX,sY,statW,statH,20,BRAND.surface);
+    drawCircle(ctx,sX+statW/2,sY+30,22,s.c+'25');
+    ctx.font='22px sans-serif'; ctx.textAlign='center'; ctx.fillText(s.i,sX+statW/2,sY+16);
+    ctx.font='bold 30px -apple-system,sans-serif'; ctx.fillStyle=s.c; ctx.fillText(s.v,sX+statW/2,sY+60);
+    ctx.font='16px -apple-system,sans-serif'; ctx.fillStyle=BRAND.textSecondary; ctx.fillText(s.l,sX+statW/2,sY+94);
+  });
+  y+=statH*2+36;
+  ctx.font='bold 28px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.fillText('Missões em Destaque',sx+24,y);
+  ctx.textAlign='right'; ctx.font='20px -apple-system,sans-serif'; ctx.fillStyle=BRAND.primary; ctx.fillText('Ver todas',sx+sw-24,y+4); y+=44;
+  [{t:'Compartilhar nas redes',p:'+50 pts'},{t:'Participar de evento',p:'+100 pts'}].forEach(m=>{
+    drawCard(ctx,sx+24,y,sw-48,72,16,BRAND.surface);
+    drawRR(ctx,sx+40,y+16,40,40,12); ctx.fillStyle=BRAND.primary+'20'; ctx.fill();
+    ctx.font='20px sans-serif'; ctx.textAlign='left'; ctx.fillText('🚩',sx+48,y+24);
+    ctx.font='bold 22px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.fillText(m.t,sx+96,y+20);
+    drawPill(ctx,sx+sw-140,y+22,m.p,BRAND.success+'25',BRAND.success,17); y+=84;
+  });
+  y+=12;
+  ctx.font='bold 28px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.fillText('Ações Rápidas',sx+24,y); y+=44;
+  const actW=(sw-48-24)/3;
+  [{i:'👥',l:'Convidar',c:BRAND.success},{i:'📚',l:'Materiais',c:BRAND.blue},{i:'🔔',l:'Avisos',c:BRAND.danger}].forEach((a,i)=>{
+    const aX=sx+24+i*(actW+12); drawCard(ctx,aX,y,actW,90,16,BRAND.surface);
+    drawCircle(ctx,aX+actW/2,y+30,20,a.c+'20');
+    ctx.font='22px sans-serif'; ctx.textAlign='center'; ctx.fillText(a.i,aX+actW/2,y+18);
+    ctx.font='16px -apple-system,sans-serif'; ctx.fillStyle=BRAND.textSecondary; ctx.fillText(a.l,aX+actW/2,y+64);
+  });
+}
+
+function renderMissionsScreen(ctx,sx,sy,sw,sh) {
+  const cx=sx+sw/2; let y=sy+80;
+  const tabs=[{l:'Disponíveis',a:true,c:'8'},{l:'Em Progresso',a:false,c:'2'},{l:'Concluídas',a:false,c:'1'}];
+  const tabW=(sw-48)/3;
+  tabs.forEach((t,i)=>{const tx=sx+24+i*tabW;
+    ctx.font='bold 19px -apple-system,sans-serif'; ctx.fillStyle=t.a?BRAND.primary:BRAND.textSecondary; ctx.textAlign='center'; ctx.fillText(t.l,tx+tabW/2,y+6);
+    if(t.c){drawPill(ctx,tx+tabW/2+ctx.measureText(t.l).width/2+6,y+2,t.c,t.a?BRAND.primary:BRAND.surfaceElevated,t.a?'#fff':BRAND.textSecondary,14);}
+    if(t.a){ctx.fillStyle=BRAND.primary;ctx.fillRect(tx+10,y+36,tabW-20,3);}
+  }); y+=54;
+  const cats=[{l:'Todas',a:true},{l:'Redes Sociais',a:false},{l:'Presencial',a:false},{l:'Comunidade',a:false}];
+  let chipX=sx+24;
+  cats.forEach(c=>{ctx.font='bold 18px -apple-system,sans-serif'; const tw=ctx.measureText(c.l).width; const pw=tw+28;
+    drawRR(ctx,chipX,y,pw,38,19); ctx.fillStyle=c.a?BRAND.primary:'transparent'; ctx.fill();
+    ctx.strokeStyle=c.a?BRAND.primary:BRAND.surfaceElevated; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.fillText(c.l,chipX+14,y+9); chipX+=pw+10;
+  }); y+=56;
+  const missions=[
+    {f:true,t:'Compartilhar nas redes sociais',d:'Publique conteúdo de apoio nas suas redes sociais e marque nosso perfil.',r:'Diária',cat:'Redes Sociais',cc:'#399BD8',p:'+50 pts'},
+    {f:false,t:'Participar de evento presencial',d:'Compareça a um evento oficial da campanha na sua região.',r:'Única',cat:'Presencial',cc:'#DC508C',p:'+100 pts'},
+    {f:false,t:'Convidar 5 amigos para a rede',d:'Envie convites para amigos e familiares se juntarem à rede.',r:'Semanal',cat:'Comunidade',cc:'#50A03C',p:'+75 pts'},
+    {f:false,t:'Registrar ação comunitária',d:'Documente uma ação positiva feita na sua comunidade.',r:'Única',cat:'Comunidade',cc:'#50A03C',p:'+80 pts'},
+  ];
+  missions.forEach(m=>{const cH=m.f?180:140; drawCard(ctx,sx+24,y,sw-48,cH,20,BRAND.surface);
+    let cy=y+18; if(m.f){drawPill(ctx,sx+44,cy,'⭐ DESTAQUE',BRAND.warning+'25',BRAND.warning,15);cy+=34;}
+    ctx.font='bold 24px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.fillText(m.t,sx+44,cy); cy+=32;
+    ctx.font='17px -apple-system,sans-serif'; ctx.fillStyle=BRAND.textSecondary; ctx.fillText(m.d,sx+44,cy,sw-120);
+    cy=y+cH-46; let bx=sx+44;
+    const ri=m.r==='Única'?'✓':'🔄'; const rw=drawPill(ctx,bx,cy,`${ri} ${m.r}`,BRAND.surfaceElevated,BRAND.textSecondary,15); bx+=rw+8;
+    drawPill(ctx,bx,cy,m.cat,m.cc+'20',m.cc,15);
+    drawPill(ctx,sx+sw-148,cy,m.p,BRAND.success+'20',BRAND.success,17);
+    y+=cH+14;
+  });
+}
+
+function renderRankingScreen(ctx,sx,sy,sw,sh) {
+  const cx=sx+sw/2; let y=sy+80;
+  drawCard(ctx,sx+24,y,sw-48,100,24,BRAND.surface);
+  drawCircle(ctx,sx+66,y+50,26,BRAND.success);
+  ctx.font='bold 24px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.fillText('L',sx+66,y+36);
+  ctx.font='16px -apple-system,sans-serif'; ctx.fillStyle=BRAND.textSecondary; ctx.textAlign='left'; ctx.fillText('Sua posição',sx+104,y+22);
+  ctx.font='bold 24px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.fillText('Lucas',sx+104,y+42);
+  ctx.font='bold 17px -apple-system,sans-serif'; ctx.fillStyle=BRAND.success; ctx.fillText('280 pontos',sx+104,y+70);
+  const rbX=sx+sw-120; drawRR(ctx,rbX,y+24,76,52,16); ctx.fillStyle=BRAND.primary; ctx.fill();
+  ctx.font='20px -apple-system,sans-serif'; ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.textAlign='left'; ctx.fillText('#',rbX+14,y+40);
+  ctx.font='bold 32px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.fillText('12',rbX+30,y+36); y+=118;
+  const fW=(sw-48-24)/3;
+  [{l:'Top 10',a:false},{l:'Top 50',a:true},{l:'Todos',a:false}].forEach((f,i)=>{
+    const fx=sx+24+i*(fW+12); drawRR(ctx,fx,y,fW,44,22);
+    ctx.fillStyle=f.a?BRAND.primary:BRAND.surface; ctx.fill();
+    if(!f.a){ctx.strokeStyle=BRAND.surfaceElevated;ctx.lineWidth=1.5;ctx.stroke();}
+    ctx.font='bold 18px -apple-system,sans-serif'; ctx.fillStyle=f.a?'#fff':BRAND.text; ctx.textAlign='center'; ctx.fillText(f.l,fx+fW/2,y+14);
+  }); y+=62;
+  drawCard(ctx,sx+24,y,sw-48,300,24,BRAND.surface);
+  ctx.font='bold 24px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.fillText('🏆 Pódio',cx,y+22);
+  const pod=[{n:'Maria',p:'520',c:'#C0C0C0',pos:'2°',sz:48,oy:30},{n:'João',p:'780',c:'#FFD700',pos:'1°',sz:64,oy:0},{n:'Ana',p:'445',c:'#CD7F32',pos:'3°',sz:44,oy:50}];
+  const podW=(sw-48-48)/3;
+  pod.forEach((p,i)=>{const px=sx+48+i*podW+podW/2,py=y+100+p.oy;
+    drawCircle(ctx,px,py,p.sz/2,p.c+'40'); drawCircle(ctx,px,py,p.sz/2-4,BRAND.surfaceElevated);
+    ctx.font=`bold ${p.sz*0.4}px -apple-system,sans-serif`; ctx.fillStyle=p.c; ctx.textAlign='center'; ctx.fillText(p.n[0],px,py-12);
+    drawCircle(ctx,px,py+p.sz/2-4,14,p.c); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke();
+    ctx.font='bold 12px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.fillText(p.pos,px,py+p.sz/2-12);
+    ctx.font='bold 18px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.fillText(p.n,px,py+p.sz/2+20);
+    ctx.font='bold 16px -apple-system,sans-serif'; ctx.fillStyle=p.c; ctx.fillText(p.p+' pts',px,py+p.sz/2+42);
+  }); y+=318;
+  [{p:4,n:'Carlos',l:'Mobilizador',lc:'#399BD8',pt:420},{p:5,n:'Patricia',l:'Apoiador',lc:'#50A03C',pt:380},{p:6,n:'Roberto',l:'Apoiador',lc:'#50A03C',pt:355},{p:7,n:'Fernanda',l:'Líder',lc:'#F0B400',pt:340},{p:8,n:'Miguel',l:'Apoiador',lc:'#50A03C',pt:310},{p:9,n:'Juliana',l:'Apoiador',lc:'#50A03C',pt:295}].forEach(r=>{
+    drawCard(ctx,sx+24,y,sw-48,64,16,BRAND.surface);
+    ctx.font='bold 22px -apple-system,sans-serif'; ctx.fillStyle=BRAND.textTertiary; ctx.textAlign='center'; ctx.fillText(String(r.p),sx+54,y+22);
+    drawCircle(ctx,sx+100,y+32,18,r.lc);
+    ctx.font='bold 16px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.fillText(r.n[0],sx+100,y+24);
+    ctx.font='bold 20px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.fillText(r.n,sx+130,y+16);
+    drawPill(ctx,sx+130,y+38,r.l,r.lc+'20',r.lc,13);
+    ctx.textAlign='right'; ctx.font='bold 22px -apple-system,sans-serif'; ctx.fillStyle=BRAND.primary; ctx.fillText(String(r.pt),sx+sw-64,y+28);
+    ctx.font='13px -apple-system,sans-serif'; ctx.fillStyle=BRAND.textTertiary; ctx.fillText('pts',sx+sw-64,y+50);
+    y+=76;
+  });
+}
+
+function renderEventsScreen(ctx,sx,sy,sw,sh) {
+  const cx=sx+sw/2; let y=sy+80;
+  ctx.font='bold 28px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.fillText('Próximos Eventos',sx+24,y); y+=48;
+  const events=[
+    {t:'Reunião de Embaixadores',d:'📅  15 Jun 2026 • 19:00',loc:'📍  Centro Cultural, Fortaleza',btn:'Confirmar presença',att:'23 confirmados',p:null},
+    {t:'Panfletagem Bairro Aldeota',d:'📅  18 Jun 2026 • 08:00',loc:'📍  Bairro Aldeota, Fortaleza',btn:null,att:'15 confirmados',p:'+50 pts'},
+    {t:'Live Tira-Dúvidas',d:'📅  20 Jun 2026 • 20:00',loc:'🌐  Online — YouTube',btn:null,att:'48 interessados',p:'+30 pts',online:true},
+    {t:'Caminhada Comunitária',d:'📅  25 Jun 2026 • 07:00',loc:'📍  Praça do Ferreira',btn:null,att:'32 confirmados',p:'+80 pts'},
+  ];
+  events.forEach(e=>{const cH=e.btn?220:160; drawCard(ctx,sx+24,y,sw-48,cH,20,BRAND.surface);
+    let ey=y+20;
+    ctx.font='bold 24px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.fillText(e.t,sx+44,ey);
+    if(e.online){drawPill(ctx,sx+44+ctx.measureText(e.t).width+16,ey+2,'online','#399BD8'+'30','#399BD8',14);}
+    if(e.p){ctx.font='bold 17px -apple-system,sans-serif'; drawPill(ctx,sx+sw-160,ey+2,e.p,BRAND.success+'25',BRAND.success,16);}
+    ey+=38;
+    ctx.font='19px -apple-system,sans-serif'; ctx.fillStyle=BRAND.textSecondary; ctx.textAlign='left'; ctx.fillText(e.d,sx+44,ey); ey+=30;
+    ctx.fillText(e.loc,sx+44,ey); ey+=34;
+    if(e.btn){drawRR(ctx,sx+44,ey,sw-88,50,25); ctx.fillStyle=BRAND.primary; ctx.fill();
+      ctx.font='bold 20px -apple-system,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.fillText(e.btn,cx,ey+15); ey+=58;}
+    ctx.font='16px -apple-system,sans-serif'; ctx.fillStyle=BRAND.textTertiary; ctx.textAlign='left'; ctx.fillText('👤 '+e.att,sx+44,ey);
+    y+=cH+14;
+  });
+  // Tab bar
+  const tabY=sy+sh-100; ctx.fillStyle=BRAND.surface; ctx.fillRect(sx,tabY,sw,100);
+  ctx.fillStyle=BRAND.surfaceElevated; ctx.fillRect(sx,tabY,sw,1);
+  const ti=[{i:'🏠',l:'Home',a:false},{i:'🎯',l:'Missões',a:false},{i:'🏆',l:'Ranking',a:false},{i:'📅',l:'Eventos',a:true},{i:'👤',l:'Perfil',a:false}];
+  const tiW=sw/ti.length;
+  ti.forEach((t,idx)=>{const tx=sx+idx*tiW+tiW/2;
+    ctx.font='24px sans-serif'; ctx.textAlign='center'; ctx.fillText(t.i,tx,tabY+16);
+    ctx.font='bold 14px -apple-system,sans-serif'; ctx.fillStyle=t.a?BRAND.primary:BRAND.textTertiary; ctx.fillText(t.l,tx,tabY+48);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// MAIN RENDER + UI
+// ══════════════════════════════════════════════════════════════
+
+const screenshotConfigs = [
+  { id:'login',  title:'1. Login',     bgGradient:[BRAND.red,BRAND.darkRed],        headline:'FAÇA PARTE\nDA MUDANÇA',       subtitle:'PARTICIPE. MOBILIZE. TRANSFORME.',                   render:renderLoginScreen },
+  { id:'home',   title:'2. Dashboard', bgGradient:[BRAND.red,BRAND.darkRed],        headline:'ACOMPANHE\nSEU PROGRESSO',     subtitle:'Ganhe pontos, suba de nível, conquiste badges',      render:renderHomeScreen },
+  { id:'missions',title:'3. Missões',  bgGradient:[BRAND.blue,BRAND.darkBlue],      headline:'COMPLETE\nMISSÕES',            subtitle:'Ações reais que geram impacto na sua comunidade',    render:renderMissionsScreen },
+  { id:'ranking',title:'4. Ranking',   bgGradient:[BRAND.green,BRAND.darkGreen],    headline:'DISPUTE\nO RANKING',           subtitle:'Veja sua posição e desafie outros embaixadores',     render:renderRankingScreen },
+  { id:'events', title:'5. Eventos',   bgGradient:['#C0387A',BRAND.darkPurple],     headline:'EVENTOS\nE CONVITES',          subtitle:'Participe de ações presenciais e mobilize sua rede', render:renderEventsScreen },
+];
+
+const allCanvases = [];
+const grid = document.getElementById('grid');
+const linkList = document.getElementById('linkList');
+linkList.innerHTML = '';
+
+screenshotConfigs.forEach((cfg, idx) => {
+  // Create full-size canvas
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  // Background
+  drawGradient(ctx, cfg.bgGradient, 0, 0, W, H);
+  const glow = ctx.createRadialGradient(W/2, H*0.3, 0, W/2, H*0.3, W*0.8);
+  glow.addColorStop(0,'rgba(255,255,255,0.06)'); glow.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0,0,W,H);
+
+  // Icon
+  drawAppIcon(ctx, W/2, 200, 140);
+
+  // Headline
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  const lines = cfg.headline.split('\n');
+  ctx.font='900 96px -apple-system,"SF Pro Display",sans-serif'; ctx.fillStyle='#fff';
+  lines.forEach((l,i) => ctx.fillText(l, W/2, 310 + i*108));
+
+  // Subtitle
+  const subY = 310 + lines.length*108 + 16;
+  ctx.font='italic 600 36px -apple-system,sans-serif'; ctx.fillStyle=BRAND.yellow;
+  ctx.fillText(cfg.subtitle, W/2, subY);
+
+  // Phone
+  const phoneX=(W-PHONE_W)/2, phoneY=subY+80;
+  const {sx,sy,sw,sh} = drawPhoneFrame(ctx, phoneX, phoneY);
+  drawStatusBar(ctx, sx, sy, sw);
+  cfg.render(ctx, sx, sy, sw, sh);
+  ctx.restore();
+
+  // Convert to blob URL for download link
+  const dataUrl = canvas.toDataURL('image/png');
+  allCanvases.push({ canvas, dataUrl, cfg });
+
+  // Create download link
+  const link = document.createElement('a');
+  link.href = dataUrl;
+  link.download = `appstore_${cfg.id}_1284x2778.png`;
+  link.innerHTML = `⬇️ ${cfg.title} — appstore_${cfg.id}_1284x2778.png <span class="check">✅</span>`;
+  link.onclick = () => { setTimeout(() => link.classList.add('downloaded'), 500); };
+  linkList.appendChild(link);
+
+  // Preview card
+  const card = document.createElement('div');
+  card.className = 'card';
+  const preview = document.createElement('canvas');
+  preview.width = 257; preview.height = 556;
+  preview.getContext('2d').drawImage(canvas, 0, 0, 257, 556);
+  const info = document.createElement('div');
+  info.className = 'card-info';
+  info.innerHTML = `<h3>${cfg.title}</h3><p>1284×2778px</p>`;
+  card.appendChild(preview);
+  card.appendChild(info);
+  grid.appendChild(card);
+});
+
+document.getElementById('btnSeq').disabled = false;
+
+let seqIndex = 0;
+function downloadSequential() {
+  if (seqIndex >= allCanvases.length) {
+    showStatus('✅ Todos os 5 screenshots baixados!');
+    seqIndex = 0;
+    return;
+  }
+  const { dataUrl, cfg } = allCanvases[seqIndex];
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = `appstore_${cfg.id}_1284x2778.png`;
+  a.click();
+  
+  const links = linkList.querySelectorAll('a');
+  if (links[seqIndex]) links[seqIndex].classList.add('downloaded');
+  
+  seqIndex++;
+  showStatus(`📥 Baixando ${seqIndex}/${allCanvases.length}...`);
+  
+  const pb = document.getElementById('progressBar');
+  const pf = document.getElementById('progressFill');
+  pb.style.display = 'block';
+  pf.style.width = `${(seqIndex/allCanvases.length)*100}%`;
+  
+  if (seqIndex < allCanvases.length) {
+    setTimeout(downloadSequential, 3000);
+  } else {
+    setTimeout(() => showStatus('✅ Todos os 5 screenshots baixados! Pronto para o App Store Connect.'), 500);
+  }
+}
+
+function showStatus(msg) {
+  const el = document.getElementById('status');
+  el.textContent = msg; el.style.display = 'block';
+}
+</script>
+</body>
+</html>

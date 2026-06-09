@@ -2,6 +2,7 @@
   "expo": {
     "name": "Rede de Embaixadores",
     "slug": "rede-embaixadores",
+    "owner": "lucassmmesquita",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -13,7 +14,8 @@
       "bundleIdentifier": "com.embaixadores.app",
       "usesAppleSignIn": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Precisamos da sua localização para check-in em eventos."
+        "NSLocationWhenInUseUsageDescription": "Precisamos da sua localização para check-in em eventos.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -24,7 +26,9 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "permissions": ["ACCESS_FINE_LOCATION"]
+      "permissions": [
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -48,8 +52,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "rede-embaixadores"
-      }
+        "projectId": "c79e895d-d9c6-41de-88ad-9751b3a2531f"
+      },
+      "router": {}
     }
   }
 }

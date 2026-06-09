@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Screenshots iPad — App Store</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0A0A0F;color:#fff;padding:32px}
+  h1{font-size:28px;margin-bottom:8px}
+  .subtitle{color:#A0A0AB;margin-bottom:32px;font-size:15px}
+  .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:40px}
+  .card{background:#1A1A24;border-radius:16px;overflow:hidden;transition:transform .2s}
+  .card:hover{transform:translateY(-4px)}
+  .card canvas{width:100%;height:auto;display:block}
+  .card-info{padding:12px}
+  .card-info h3{font-size:14px;margin-bottom:4px}
+  .card-info p{font-size:11px;color:#6B6B78}
+  .download-links{background:#1A1A24;border-radius:16px;padding:24px;margin-bottom:24px}
+  .download-links h2{font-size:18px;margin-bottom:16px}
+  .download-links a{display:block;color:#2171BA;text-decoration:none;padding:12px 16px;border-radius:12px;margin-bottom:4px;font-size:15px;font-weight:500;transition:background .2s}
+  .download-links a:hover{background:#252530}
+  .download-links a .check{color:#50A03C;margin-left:8px;display:none}
+  .download-links a.downloaded .check{display:inline}
+  .status{padding:12px 20px;background:#252530;border-radius:12px;font-size:14px;color:#50A03C;margin-bottom:16px;display:none}
+  .progress-bar{width:100%;height:6px;background:#252530;border-radius:3px;margin:16px 0;display:none}
+  .progress-fill{height:100%;background:#50A03C;border-radius:3px;transition:width .3s;width:0%}
+  .btn-seq{background:#50A03C;padding:16px 40px;font-size:16px;border-radius:999px;border:none;color:#fff;font-weight:700;cursor:pointer;margin-bottom:16px}
+  .btn-seq:hover{background:#6BC050}
+  .specs{background:#1A1A24;border-radius:16px;padding:24px;margin-bottom:24px}
+  .specs table{width:100%;border-collapse:collapse}
+  .specs td,.specs th{padding:8px 12px;text-align:left;border-bottom:1px solid #32323E;font-size:13px}
+  .specs th{color:#A0A0AB;font-weight:500}
+</style>
+</head>
+<body>
+<h1>📱 Screenshots iPad — App Store</h1>
+<p class="subtitle">Dimensão: <strong>2048 × 2732px</strong> (iPad 13" Display)</p>
+<div class="specs"><table>
+  <tr><th>Device</th><th>iPad 13" / 12.9" Display</th></tr>
+  <tr><th>Dimensão</th><th>2048 × 2732 px (portrait)</th></tr>
+  <tr><th>Formato</th><th>PNG</th></tr>
+  <tr><th>Screenshots</th><th>5 telas</th></tr>
+</table></div>
+
+<div class="status" id="status"></div>
+<div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+
+<div class="download-links" id="downloadLinks">
+  <h2>⬇️ Clique em cada link para baixar:</h2>
+  <div id="linkList">Gerando screenshots...</div>
+</div>
+
+<button class="btn-seq" id="btnSeq" onclick="downloadSequential()" disabled>📥 Baixar um por um (3s entre cada)</button>
+
+<h2 style="margin-bottom:16px;font-size:18px">Prévia</h2>
+<div class="grid" id="grid"></div>
+
+<script>
+const W=2048, H=2732;
+const PHONE_W=980, PHONE_H=1440, PHONE_R=56, PHONE_B=14;
+
+const B={
+  red:'#DC2828',blue:'#3C50A0',magenta:'#DC508C',yellow:'#F0B400',green:'#50A03C',
+  dkRed:'#C80000',dkBlue:'#2A3878',dkGreen:'#2D7A20',dkPurple:'#7A3F8F',
+  bg:'#0A0A0F',surf:'#1A1A24',surfE:'#252530',surfH:'#32323E',
+  txt:'#FFFFFF',txt2:'#A0A0AB',txt3:'#6B6B78',
+  pri:'#2171BA',suc:'#4DAA35',warn:'#FAD549',dan:'#E33431',
+};
+
+function drawGrad(c,cols,x,y,w,h){const g=c.createLinearGradient(x,y,x,y+h);g.addColorStop(0,cols[0]);g.addColorStop(1,cols[1]);c.fillStyle=g;c.fillRect(x,y,w,h)}
+function drawRR(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.quadraticCurveTo(x+w,y,x+w,y+r);c.lineTo(x+w,y+h-r);c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);c.lineTo(x+r,y+h);c.quadraticCurveTo(x,y+h,x,y+h-r);c.lineTo(x,y+r);c.quadraticCurveTo(x,y,x+r,y);c.closePath()}
+function drawCirc(c,cx,cy,r,col){c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.fillStyle=col;c.fill()}
+function drawCard(c,x,y,w,h,r,bg){drawRR(c,x,y,w,h,r||24);c.fillStyle=bg||B.surf;c.fill()}
+function drawPill(c,x,y,t,bg,tc,fs){fs=fs||24;c.font=`bold ${fs}px -apple-system,sans-serif`;const tw=c.measureText(t).width,pw=tw+30,ph=fs+16;drawRR(c,x,y,pw,ph,ph/2);c.fillStyle=bg;c.fill();c.fillStyle=tc||'#fff';c.textAlign='left';c.textBaseline='middle';c.fillText(t,x+15,y+ph/2+1);return pw}
+function drawStar(c,cx,cy,r,col){c.beginPath();for(let i=0;i<5;i++){const a=(i*4*Math.PI)/5-Math.PI/2;const x=cx+r*Math.cos(a),y=cy+r*Math.sin(a);if(i===0)c.moveTo(x,y);else c.lineTo(x,y)}c.closePath();c.fillStyle=col;c.fill()}
+function drawFig(c,cx,cy,arm,col,s){drawCirc(c,cx,cy-arm*.7,12*s,col);c.beginPath();c.moveTo(cx-arm,cy-arm*.3);c.quadraticCurveTo(cx,cy+arm*.6,cx+arm,cy-arm*.3);c.lineWidth=10*s;c.strokeStyle=col;c.lineCap='round';c.stroke()}
+function drawIcon(c,cx,cy,sz){
+  const r=sz*.22,x=cx-sz/2,y=cy-sz/2;
+  c.save();c.shadowColor='rgba(0,0,0,.3)';c.shadowBlur=24;c.shadowOffsetY=10;
+  drawRR(c,x,y,sz,sz,r);c.fillStyle='#fff';c.fill();c.restore();
+  const s=sz/180;drawStar(c,cx,cy+sz*.05-62*s,16*s,B.yellow);
+  drawFig(c,cx,cy+sz*.05-20*s,42*s,B.red,s);drawFig(c,cx-40*s,cy+sz*.05+10*s,28*s,B.blue,s*.7);
+  drawFig(c,cx+40*s,cy+sz*.05+10*s,28*s,B.magenta,s*.7);drawFig(c,cx-22*s,cy+sz*.05+40*s,22*s,B.yellow,s*.55);
+  drawFig(c,cx+22*s,cy+sz*.05+40*s,22*s,B.green,s*.55);
+}
+function drawPhone(c,px,py){
+  c.save();c.shadowColor='rgba(0,0,0,.5)';c.shadowBlur=70;c.shadowOffsetY=24;
+  drawRR(c,px,py,PHONE_W,PHONE_H,PHONE_R);c.fillStyle='#2A2A2E';c.fill();c.restore();
+  drawRR(c,px+2,py+2,PHONE_W-4,PHONE_H-4,PHONE_R-2);c.fillStyle='#3A3A3E';c.fill();
+  const sx=px+PHONE_B,sy=py+PHONE_B,sw=PHONE_W-PHONE_B*2,sh=PHONE_H-PHONE_B*2;
+  drawRR(c,sx,sy,sw,sh,PHONE_R-PHONE_B);c.fillStyle=B.bg;c.fill();c.save();c.clip();
+  return{sx,sy,sw,sh};
+}
+function drawSB(c,sx,sy,sw){
+  c.font='bold 32px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='left';c.fillText('9:41',sx+44,sy+22);
+  const dW=200,dH=52,dX=sx+(sw-dW)/2,dY=sy+8;drawRR(c,dX,dY,dW,dH,dH/2);c.fillStyle='#000';c.fill();
+  c.font='bold 28px -apple-system,sans-serif';c.textAlign='right';c.fillStyle='#fff';c.fillText('📶  📡  🔋',sx+sw-34,sy+26);
+}
+
+// ═══ SCREEN RENDERERS (adapted for iPad wider phone) ═══
+
+function renderLogin(c,sx,sy,sw,sh){
+  const cx=sx+sw/2;let y=sy+80;
+  drawCirc(c,cx,y+55,55,B.pri+'30');drawCirc(c,cx,y+55,44,B.pri);
+  c.font='bold 40px sans-serif';c.fillStyle='#fff';c.textAlign='center';c.fillText('👥',cx,y+36);y+=130;
+  c.font='bold 20px -apple-system,sans-serif';c.fillStyle='#A0A0AB';c.textAlign='center';c.fillText('DEP. FEDERAL',cx,y);y+=32;
+  const ltrs=[{l:'I',c:'#E33431'},{l:'N',c:'#E33431'},{l:'Á',c:'#FAD549'},{l:'C',c:'#4DAA35'},{l:'I',c:'#2171BA'},{l:'O',c:'#E33431'}];
+  c.font='bold 56px -apple-system,sans-serif';let tW=0;ltrs.forEach(l=>tW+=c.measureText(l.l).width+3);let lx=cx-tW/2;c.textAlign='left';
+  ltrs.forEach(l=>{c.fillStyle=l.c;c.fillText(l.l,lx,y);lx+=c.measureText(l.l).width+3});y+=68;
+  drawRR(c,cx-46,y,92,36,8);c.fillStyle='#E33431';c.fill();
+  c.font='bold 24px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='center';c.fillText('6565',cx,y+5);y+=52;
+  const bW=180,bH=7,bC=['#E33431','#FAD549','#4DAA35','#2171BA'];bC.forEach((col,i)=>{c.fillStyle=col;c.fillRect(cx-bW/2+i*(bW/4),y,bW/4,bH)});y+=24;
+  c.font='bold 32px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='center';c.fillText('Rede de Embaixadores',cx,y);y+=40;
+  c.font='22px -apple-system,sans-serif';c.fillStyle=B.txt2;c.fillText('Junte-se a nós. Faça parte da mudança.',cx,y);y+=56;
+  // Email
+  drawCard(c,sx+36,y,sw-72,78,18,B.surf);c.font='18px -apple-system,sans-serif';c.fillStyle=B.txt3;c.textAlign='left';c.fillText('E-mail',sx+58,y+14);
+  c.font='24px -apple-system,sans-serif';c.fillStyle=B.txt3+'80';c.fillText('seu@email.com',sx+58,y+42);y+=94;
+  // Senha
+  drawCard(c,sx+36,y,sw-72,78,18,B.surf);c.font='18px -apple-system,sans-serif';c.fillStyle=B.txt3;c.textAlign='left';c.fillText('Senha',sx+58,y+14);
+  c.font='28px -apple-system,sans-serif';c.fillStyle=B.txt3+'80';c.fillText('••••••••',sx+58,y+40);y+=98;
+  // Entrar
+  drawRR(c,sx+36,y,sw-72,72,36);c.fillStyle=B.pri;c.fill();c.font='bold 28px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='center';c.fillText('Entrar',cx,y+20);y+=88;
+  c.font='22px -apple-system,sans-serif';c.fillStyle=B.pri;c.fillText('Esqueci minha senha',cx,y);y+=50;
+  // Divider
+  c.fillStyle=B.txt3+'40';c.fillRect(sx+36,y+12,(sw-72)/2-90,1);c.fillRect(cx+90,y+12,(sw-72)/2-90,1);
+  c.font='20px -apple-system,sans-serif';c.fillStyle=B.txt3;c.fillText('ou continue com',cx,y);y+=44;
+  // Google
+  drawRR(c,sx+36,y,sw-72,64,32);c.fillStyle='#fff';c.fill();drawCirc(c,sx+80,y+32,16,'#4285F4');
+  c.font='bold 22px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='center';c.fillText('G',sx+80,y+20);
+  c.fillStyle='#1D1D1F';c.fillText('Entrar com Google',cx+12,y+20);y+=76;
+  // Facebook
+  drawRR(c,sx+36,y,sw-72,64,32);c.fillStyle='#1877F2';c.fill();
+  c.font='bold 30px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='center';c.fillText('f',sx+80,y+16);
+  c.font='bold 22px -apple-system,sans-serif';c.fillText('Entrar com Facebook',cx+12,y+20);y+=76;
+  // Apple
+  drawRR(c,sx+36,y,sw-72,64,32);c.fillStyle='#000';c.fill();
+  c.font='bold 26px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='center';c.fillText('',sx+76,y+18);
+  c.font='bold 22px -apple-system,sans-serif';c.fillText('Entrar com Apple',cx+12,y+20);y+=86;
+  c.font='22px -apple-system,sans-serif';c.fillStyle=B.txt2;c.fillText('Ainda não tem conta?',cx-60,y+4);
+  c.font='bold 22px -apple-system,sans-serif';c.fillStyle=B.pri;c.fillText('Cadastre-se',cx+110,y+4);
+}
+
+function renderHome(c,sx,sy,sw,sh){
+  const cx=sx+sw/2;let y=sy+80;
+  drawCard(c,sx+28,y,sw-56,240,28,B.surf);
+  drawCirc(c,sx+72,y+56,36,B.suc);c.font='bold 32px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='center';c.fillText('L',sx+72,y+38);
+  drawCirc(c,sx+98,y+82,15,B.suc);c.strokeStyle='#fff';c.lineWidth=2;c.stroke();c.font='bold 14px sans-serif';c.fillStyle='#fff';c.fillText('1',sx+98,y+76);
+  c.font='bold 32px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='left';c.fillText('Olá, Lucas!',sx+122,y+36);
+  drawPill(c,sx+122,y+72,'🌱 Apoiador',B.suc+'25',B.suc,20);
+  c.font='20px -apple-system,sans-serif';c.fillStyle=B.txt2;c.textAlign='left';c.fillText('Progresso para o próximo nível',sx+50,y+124);
+  c.textAlign='right';c.font='bold 20px -apple-system,sans-serif';c.fillStyle=B.suc;c.fillText('45%',sx+sw-78,y+124);
+  drawRR(c,sx+50,y+154,sw-100,12,6);c.fillStyle=B.surfE;c.fill();drawRR(c,sx+50,y+154,(sw-100)*.45,12,6);c.fillStyle=B.suc;c.fill();
+  c.font='18px -apple-system,sans-serif';c.fillStyle=B.txt3;c.textAlign='left';c.fillText('Faltam 120 pontos para Mobilizador',sx+50,y+178);
+  y+=260;
+  const stW=(sw-56-16)/2,stH=130;
+  [{i:'⭐',v:'280',l:'Pontos',cl:B.warn},{i:'🏁',v:'5',l:'Missões',cl:B.suc},{i:'🏆',v:'#12',l:'Ranking',cl:B.pri},{i:'🎖️',v:'3',l:'Badges',cl:'#7A3F8F'}].forEach((s,idx)=>{
+    const col=idx%2,row=Math.floor(idx/2),sX=sx+28+col*(stW+16),sY=y+row*(stH+16);
+    drawCard(c,sX,sY,stW,stH,22,B.surf);drawCirc(c,sX+stW/2,sY+34,26,s.cl+'25');
+    c.font='24px sans-serif';c.textAlign='center';c.fillText(s.i,sX+stW/2,sY+18);
+    c.font='bold 34px -apple-system,sans-serif';c.fillStyle=s.cl;c.fillText(s.v,sX+stW/2,sY+68);
+    c.font='18px -apple-system,sans-serif';c.fillStyle=B.txt2;c.fillText(s.l,sX+stW/2,sY+104);
+  });
+  y+=stH*2+48;
+  c.font='bold 30px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='left';c.fillText('Missões em Destaque',sx+28,y);
+  c.textAlign='right';c.font='22px -apple-system,sans-serif';c.fillStyle=B.pri;c.fillText('Ver todas',sx+sw-28,y+4);y+=48;
+  [{t:'Compartilhar nas redes',p:'+50 pts'},{t:'Participar de evento',p:'+100 pts'}].forEach(m=>{
+    drawCard(c,sx+28,y,sw-56,80,18,B.surf);
+    drawRR(c,sx+46,y+18,44,44,14);c.fillStyle=B.pri+'20';c.fill();c.font='22px sans-serif';c.textAlign='left';c.fillText('🚩',sx+55,y+28);
+    c.font='bold 24px -apple-system,sans-serif';c.fillStyle='#fff';c.fillText(m.t,sx+106,y+24);
+    drawPill(c,sx+sw-166,y+24,m.p,B.suc+'25',B.suc,19);y+=96;
+  });
+  y+=16;
+  c.font='bold 30px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='left';c.fillText('Ações Rápidas',sx+28,y);y+=48;
+  const aW=(sw-56-32)/3;
+  [{i:'👥',l:'Convidar',cl:B.suc},{i:'📚',l:'Materiais',cl:B.blue},{i:'🔔',l:'Avisos',cl:B.dan}].forEach((a,i)=>{
+    const aX=sx+28+i*(aW+16);drawCard(c,aX,y,aW,100,18,B.surf);
+    drawCirc(c,aX+aW/2,y+32,24,a.cl+'20');c.font='24px sans-serif';c.textAlign='center';c.fillText(a.i,aX+aW/2,y+18);
+    c.font='18px -apple-system,sans-serif';c.fillStyle=B.txt2;c.fillText(a.l,aX+aW/2,y+72);
+  });
+}
+
+function renderMissions(c,sx,sy,sw,sh){
+  const cx=sx+sw/2;let y=sy+80;
+  const tabW=(sw-56)/3;
+  [{l:'Disponíveis',a:true,n:'8'},{l:'Em Progresso',a:false,n:'2'},{l:'Concluídas',a:false,n:'1'}].forEach((t,i)=>{
+    const tx=sx+28+i*tabW;c.font='bold 22px -apple-system,sans-serif';c.fillStyle=t.a?B.pri:B.txt2;c.textAlign='center';c.fillText(t.l,tx+tabW/2,y+8);
+    if(t.n)drawPill(c,tx+tabW/2+c.measureText(t.l).width/2+8,y+2,t.n,t.a?B.pri:B.surfE,t.a?'#fff':B.txt2,16);
+    if(t.a){c.fillStyle=B.pri;c.fillRect(tx+12,y+40,tabW-24,3)}
+  });y+=58;
+  let chipX=sx+28;
+  [{l:'Todas',a:true},{l:'Redes Sociais',a:false},{l:'Presencial',a:false},{l:'Comunidade',a:false}].forEach(ch=>{
+    c.font='bold 20px -apple-system,sans-serif';const tw=c.measureText(ch.l).width,pw=tw+32;
+    drawRR(c,chipX,y,pw,42,21);c.fillStyle=ch.a?B.pri:'transparent';c.fill();c.strokeStyle=ch.a?B.pri:B.surfE;c.lineWidth=1.5;c.stroke();
+    c.fillStyle='#fff';c.textAlign='left';c.fillText(ch.l,chipX+16,y+10);chipX+=pw+12;
+  });y+=62;
+  const missions=[
+    {f:true,t:'Compartilhar nas redes sociais',d:'Publique conteúdo de apoio nas suas redes sociais e marque nosso perfil.',r:'Diária',cat:'Redes Sociais',cc:'#399BD8',p:'+50 pts'},
+    {f:false,t:'Participar de evento presencial',d:'Compareça a um evento oficial da campanha na sua região.',r:'Única',cat:'Presencial',cc:'#DC508C',p:'+100 pts'},
+    {f:false,t:'Convidar 5 amigos para a rede',d:'Envie convites para amigos e familiares se juntarem à rede.',r:'Semanal',cat:'Comunidade',cc:'#50A03C',p:'+75 pts'},
+    {f:false,t:'Registrar ação comunitária',d:'Documente uma ação positiva feita na sua comunidade.',r:'Única',cat:'Comunidade',cc:'#50A03C',p:'+80 pts'},
+  ];
+  missions.forEach(m=>{const cH=m.f?200:156;drawCard(c,sx+28,y,sw-56,cH,22,B.surf);let cy=y+20;
+    if(m.f){drawPill(c,sx+50,cy,'⭐ DESTAQUE',B.warn+'25',B.warn,17);cy+=38}
+    c.font='bold 26px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='left';c.fillText(m.t,sx+50,cy);cy+=36;
+    c.font='19px -apple-system,sans-serif';c.fillStyle=B.txt2;c.fillText(m.d,sx+50,cy,sw-140);
+    cy=y+cH-50;let bx=sx+50;
+    const ri=m.r==='Única'?'✓':'🔄',rw=drawPill(c,bx,cy,`${ri} ${m.r}`,B.surfE,B.txt2,17);bx+=rw+10;
+    drawPill(c,bx,cy,m.cat,m.cc+'20',m.cc,17);drawPill(c,sx+sw-170,cy,m.p,B.suc+'20',B.suc,19);
+    y+=cH+16;
+  });
+}
+
+function renderRanking(c,sx,sy,sw,sh){
+  const cx=sx+sw/2;let y=sy+80;
+  drawCard(c,sx+28,y,sw-56,110,28,B.surf);
+  drawCirc(c,sx+72,y+55,30,B.suc);c.font='bold 28px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='center';c.fillText('L',sx+72,y+40);
+  c.font='18px -apple-system,sans-serif';c.fillStyle=B.txt2;c.textAlign='left';c.fillText('Sua posição',sx+116,y+24);
+  c.font='bold 28px -apple-system,sans-serif';c.fillStyle='#fff';c.fillText('Lucas',sx+116,y+48);
+  c.font='bold 19px -apple-system,sans-serif';c.fillStyle=B.suc;c.fillText('280 pontos',sx+116,y+78);
+  const rbX=sx+sw-136;drawRR(c,rbX,y+26,84,58,18);c.fillStyle=B.pri;c.fill();
+  c.font='22px -apple-system,sans-serif';c.fillStyle='rgba(255,255,255,.5)';c.textAlign='left';c.fillText('#',rbX+16,y+44);
+  c.font='bold 36px -apple-system,sans-serif';c.fillStyle='#fff';c.fillText('12',rbX+34,y+40);y+=130;
+  const fW=(sw-56-28)/3;
+  [{l:'Top 10',a:false},{l:'Top 50',a:true},{l:'Todos',a:false}].forEach((f,i)=>{
+    const fx=sx+28+i*(fW+14);drawRR(c,fx,y,fW,48,24);c.fillStyle=f.a?B.pri:B.surf;c.fill();
+    if(!f.a){c.strokeStyle=B.surfE;c.lineWidth=1.5;c.stroke()}
+    c.font='bold 20px -apple-system,sans-serif';c.fillStyle=f.a?'#fff':B.txt;c.textAlign='center';c.fillText(f.l,fx+fW/2,y+14);
+  });y+=68;
+  drawCard(c,sx+28,y,sw-56,320,28,B.surf);
+  c.font='bold 28px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='center';c.fillText('🏆 Pódio',cx,y+24);
+  const pod=[{n:'Maria',p:'520',cl:'#C0C0C0',pos:'2°',sz:52,oy:32},{n:'João',p:'780',cl:'#FFD700',pos:'1°',sz:70,oy:0},{n:'Ana',p:'445',cl:'#CD7F32',pos:'3°',sz:48,oy:54}];
+  const podW=(sw-56-56)/3;
+  pod.forEach((p,i)=>{const px=sx+56+i*podW+podW/2,py=y+110+p.oy;
+    drawCirc(c,px,py,p.sz/2,p.cl+'40');drawCirc(c,px,py,p.sz/2-4,B.surfE);
+    c.font=`bold ${p.sz*.4}px -apple-system,sans-serif`;c.fillStyle=p.cl;c.textAlign='center';c.fillText(p.n[0],px,py-14);
+    drawCirc(c,px,py+p.sz/2-4,16,p.cl);c.strokeStyle='#fff';c.lineWidth=2;c.stroke();
+    c.font='bold 14px -apple-system,sans-serif';c.fillStyle='#fff';c.fillText(p.pos,px,py+p.sz/2-14);
+    c.font='bold 20px -apple-system,sans-serif';c.fillStyle='#fff';c.fillText(p.n,px,py+p.sz/2+22);
+    c.font='bold 18px -apple-system,sans-serif';c.fillStyle=p.cl;c.fillText(p.p+' pts',px,py+p.sz/2+46);
+  });y+=340;
+  [{p:4,n:'Carlos',l:'Mobilizador',lc:'#399BD8',pt:420},{p:5,n:'Patricia',l:'Apoiador',lc:'#50A03C',pt:380},{p:6,n:'Roberto',l:'Apoiador',lc:'#50A03C',pt:355},{p:7,n:'Fernanda',l:'Líder',lc:'#F0B400',pt:340},{p:8,n:'Miguel',l:'Apoiador',lc:'#50A03C',pt:310},{p:9,n:'Juliana',l:'Apoiador',lc:'#50A03C',pt:295}].forEach(r=>{
+    drawCard(c,sx+28,y,sw-56,72,18,B.surf);
+    c.font='bold 24px -apple-system,sans-serif';c.fillStyle=B.txt3;c.textAlign='center';c.fillText(String(r.p),sx+60,y+24);
+    drawCirc(c,sx+112,y+36,22,r.lc);c.font='bold 18px -apple-system,sans-serif';c.fillStyle='#fff';c.fillText(r.n[0],sx+112,y+28);
+    c.font='bold 22px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='left';c.fillText(r.n,sx+146,y+18);
+    drawPill(c,sx+146,y+44,r.l,r.lc+'20',r.lc,14);
+    c.textAlign='right';c.font='bold 24px -apple-system,sans-serif';c.fillStyle=B.pri;c.fillText(String(r.pt),sx+sw-74,y+30);
+    c.font='14px -apple-system,sans-serif';c.fillStyle=B.txt3;c.fillText('pts',sx+sw-74,y+54);
+    y+=84;
+  });
+}
+
+function renderEvents(c,sx,sy,sw,sh){
+  const cx=sx+sw/2;let y=sy+80;
+  c.font='bold 32px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='left';c.fillText('Próximos Eventos',sx+28,y);y+=54;
+  [{t:'Reunião de Embaixadores',d:'📅  15 Jun 2026 • 19:00',loc:'📍  Centro Cultural, Fortaleza',btn:'Confirmar presença',att:'23 confirmados',p:null},
+   {t:'Panfletagem Bairro Aldeota',d:'📅  18 Jun 2026 • 08:00',loc:'📍  Bairro Aldeota, Fortaleza',btn:null,att:'15 confirmados',p:'+50 pts'},
+   {t:'Live Tira-Dúvidas',d:'📅  20 Jun 2026 • 20:00',loc:'🌐  Online — YouTube',btn:null,att:'48 interessados',p:'+30 pts',on:true},
+   {t:'Caminhada Comunitária',d:'📅  25 Jun 2026 • 07:00',loc:'📍  Praça do Ferreira',btn:null,att:'32 confirmados',p:'+80 pts'}
+  ].forEach(e=>{const cH=e.btn?240:176;drawCard(c,sx+28,y,sw-56,cH,22,B.surf);let ey=y+22;
+    c.font='bold 28px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='left';c.fillText(e.t,sx+50,ey);
+    if(e.on)drawPill(c,sx+50+c.measureText(e.t).width+18,ey+2,'online','#399BD8'+'30','#399BD8',16);
+    if(e.p){c.font='bold 19px -apple-system,sans-serif';drawPill(c,sx+sw-180,ey+2,e.p,B.suc+'25',B.suc,18)}
+    ey+=42;c.font='21px -apple-system,sans-serif';c.fillStyle=B.txt2;c.textAlign='left';c.fillText(e.d,sx+50,ey);ey+=34;c.fillText(e.loc,sx+50,ey);ey+=38;
+    if(e.btn){drawRR(c,sx+50,ey,sw-100,54,27);c.fillStyle=B.pri;c.fill();c.font='bold 22px -apple-system,sans-serif';c.fillStyle='#fff';c.textAlign='center';c.fillText(e.btn,cx,ey+16);ey+=64}
+    c.font='18px -apple-system,sans-serif';c.fillStyle=B.txt3;c.textAlign='left';c.fillText('👤 '+e.att,sx+50,ey);
+    y+=cH+16;
+  });
+  // Tab bar
+  const tabY=sy+sh-110;c.fillStyle=B.surf;c.fillRect(sx,tabY,sw,110);c.fillStyle=B.surfE;c.fillRect(sx,tabY,sw,1);
+  const tiW=sw/5;
+  [{i:'🏠',l:'Home',a:false},{i:'🎯',l:'Missões',a:false},{i:'🏆',l:'Ranking',a:false},{i:'📅',l:'Eventos',a:true},{i:'👤',l:'Perfil',a:false}].forEach((t,idx)=>{
+    const tx=sx+idx*tiW+tiW/2;c.font='28px sans-serif';c.textAlign='center';c.fillText(t.i,tx,tabY+18);
+    c.font='bold 16px -apple-system,sans-serif';c.fillStyle=t.a?B.pri:B.txt3;c.fillText(t.l,tx,tabY+54);
+  });
+}
+
+// ═══ MAIN ═══
+const configs=[
+  {id:'login',title:'1. Login',bg:[B.red,B.dkRed],h:'FAÇA PARTE\nDA MUDANÇA',s:'PARTICIPE. MOBILIZE. TRANSFORME.',fn:renderLogin},
+  {id:'home',title:'2. Dashboard',bg:[B.red,B.dkRed],h:'ACOMPANHE\nSEU PROGRESSO',s:'Ganhe pontos, suba de nível, conquiste badges',fn:renderHome},
+  {id:'missions',title:'3. Missões',bg:[B.blue,B.dkBlue],h:'COMPLETE\nMISSÕES',s:'Ações reais que geram impacto na sua comunidade',fn:renderMissions},
+  {id:'ranking',title:'4. Ranking',bg:[B.green,B.dkGreen],h:'DISPUTE\nO RANKING',s:'Veja sua posição e desafie outros embaixadores',fn:renderRanking},
+  {id:'events',title:'5. Eventos',bg:['#C0387A',B.dkPurple],h:'EVENTOS\nE CONVITES',s:'Participe de ações presenciais e mobilize sua rede',fn:renderEvents},
+];
+
+const allCanvases=[];
+const grid=document.getElementById('grid');
+const linkList=document.getElementById('linkList');
+linkList.innerHTML='';
+
+configs.forEach((cfg,idx)=>{
+  const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const ctx=canvas.getContext('2d');
+  drawGrad(ctx,cfg.bg,0,0,W,H);
+  const glow=ctx.createRadialGradient(W/2,H*.3,0,W/2,H*.3,W*.8);glow.addColorStop(0,'rgba(255,255,255,.06)');glow.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=glow;ctx.fillRect(0,0,W,H);
+  drawIcon(ctx,W/2,200,160);
+  ctx.textAlign='center';ctx.textBaseline='top';const lines=cfg.h.split('\n');
+  ctx.font='900 110px -apple-system,"SF Pro Display",sans-serif';ctx.fillStyle='#fff';
+  lines.forEach((l,i)=>ctx.fillText(l,W/2,320+i*124));
+  const subY=320+lines.length*124+20;
+  ctx.font='italic 600 40px -apple-system,sans-serif';ctx.fillStyle=B.yellow;ctx.fillText(cfg.s,W/2,subY);
+  const phoneX=(W-PHONE_W)/2,phoneY=subY+90;
+  const{sx,sy,sw,sh}=drawPhone(ctx,phoneX,phoneY);drawSB(ctx,sx,sy,sw);
+  cfg.fn(ctx,sx,sy,sw,sh);ctx.restore();
+
+  const dataUrl=canvas.toDataURL('image/png');
+  allCanvases.push({canvas,dataUrl,cfg});
+
+  // Download link
+  const link=document.createElement('a');link.href=dataUrl;
+  link.download=`appstore_ipad_${cfg.id}_2048x2732.png`;
+  link.innerHTML=`⬇️ ${cfg.title} — appstore_ipad_${cfg.id}_2048x2732.png <span class="check">✅</span>`;
+  link.onclick=()=>{setTimeout(()=>link.classList.add('downloaded'),500)};
+  linkList.appendChild(link);
+
+  // Preview
+  const card=document.createElement('div');card.className='card';
+  const prev=document.createElement('canvas');prev.width=256;prev.height=341;
+  prev.getContext('2d').drawImage(canvas,0,0,256,341);
+  const info=document.createElement('div');info.className='card-info';
+  info.innerHTML=`<h3>${cfg.title}</h3><p>2048×2732px</p>`;
+  card.appendChild(prev);card.appendChild(info);grid.appendChild(card);
+});
+
+document.getElementById('btnSeq').disabled=false;
+
+let seqIdx=0;
+function downloadSequential(){
+  if(seqIdx>=allCanvases.length){showStatus('✅ Todos os 5 screenshots iPad baixados!');seqIdx=0;return}
+  const{dataUrl,cfg}=allCanvases[seqIdx];const a=document.createElement('a');a.href=dataUrl;
+  a.download=`appstore_ipad_${cfg.id}_2048x2732.png`;a.click();
+  const links=linkList.querySelectorAll('a');if(links[seqIdx])links[seqIdx].classList.add('downloaded');
+  seqIdx++;showStatus(`📥 Baixando ${seqIdx}/${allCanvases.length}...`);
+  const pb=document.getElementById('progressBar'),pf=document.getElementById('progressFill');
+  pb.style.display='block';pf.style.width=`${(seqIdx/allCanvases.length)*100}%`;
+  if(seqIdx<allCanvases.length)setTimeout(downloadSequential,3000);
+  else setTimeout(()=>showStatus('✅ Todos os 5 screenshots iPad baixados! Pronto para o App Store Connect.'),500);
+}
+function showStatus(m){const e=document.getElementById('status');e.textContent=m;e.style.display='block'}
+</script>
+</body>
+</html>
