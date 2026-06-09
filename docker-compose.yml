@@ -1,18 +1,63 @@
-version: "3.8"
+# ═══════════════════════════════════════════════════════════════
+#  Rede de Embaixadores — Docker Compose (Backend + DB)
+#  Uso: docker compose up -d --build
+# ═══════════════════════════════════════════════════════════════
 
 services:
+  # ─── PostgreSQL ────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: embaixadores-db
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: embaixadores
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Init scripts rodam em ordem alfabética no primeiro start
+      - ./docker/db/00_init.sql:/docker-entrypoint-initdb.d/00_init.sql
+      - ./supabase/migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./supabase/migrations/002_rls_policies.sql:/docker-entrypoint-initdb.d/02_rls.sql
+      - ./supabase/migrations/003_seed_data.sql:/docker-entrypoint-initdb.d/03_seed.sql
+      - ./supabase/migrations/004_fix_missions_schema.sql:/docker-entrypoint-initdb.d/04_fix_missions.sql
+      - ./supabase/migrations/005_seed_events_content.sql:/docker-entrypoint-initdb.d/05_seed_events.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d embaixadores"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # ─── FastAPI Backend ───────────────────────────────────────
   api:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    container_name: embaixadores-api
     ports:
       - "8000:8000"
-    env_file:
-      - .env
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
+      # Database (aponta para o container db)
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/embaixadores
+      # API
+      - API_SECRET_KEY=${API_SECRET_KEY:-docker-dev-secret-key}
       - API_ENVIRONMENT=development
       - API_DEBUG=true
+      - API_CORS_ORIGINS=http://localhost:3000,http://localhost:8081,http://localhost:19006
+      # Supabase (opcional — preencher no .env se quiser auth social)
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET:-}
     volumes:
-      - ./backend/src:/app/src
+      - ./backend/src:/app/src  # Hot-reload: edite o código e veja refletido
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     restart: unless-stopped
+
+volumes:
+  pgdata:

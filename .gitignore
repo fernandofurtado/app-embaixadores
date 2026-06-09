@@ -53,6 +53,9 @@ android/
 .DS_Store
 Thumbs.db
 
+# ═══ DOCKER ═══
+docker-compose.override.yml
+
 # ═══ MISC ═══
 *.log
 npm-debug.log*
