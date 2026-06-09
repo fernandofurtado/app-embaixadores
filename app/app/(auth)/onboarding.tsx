@@ -112,9 +112,8 @@ export default function OnboardingScreen() {
     }
   };
 
-  const handleSkip = async () => {
-    await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
-    router.replace('/(auth)/login');
+  const handleSkip = () => {
+    handleComplete();
   };
 
   const onScroll = Animated.event(

@@ -49,8 +49,6 @@ services:
       - API_ENVIRONMENT=development
       - API_DEBUG=true
       - API_CORS_ORIGINS=http://localhost:3000,http://localhost:8081,http://localhost:19006
-      # Auth mode: "local" = bcrypt+JWT local, "supabase" = Supabase Auth
-      - AUTH_MODE=local
       # Supabase (opcional — preencher no .env se quiser auth social)
       - SUPABASE_URL=${SUPABASE_URL:-}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}

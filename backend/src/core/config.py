@@ -26,11 +26,6 @@ class Settings(BaseSettings):
     debug: bool = True
     api_secret_key: str = "change-this-secret-key-in-production"
 
-    # ═══ AUTH MODE ═══
-    # "supabase" = production (uses Supabase Auth)
-    # "local" = development (uses bcrypt + JWT with local Postgres)
-    auth_mode: str = "supabase"
-
     # ═══ DATABASE ═══
     database_url: str = ""
     database_echo: bool = False
