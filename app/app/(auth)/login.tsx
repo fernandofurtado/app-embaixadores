@@ -17,6 +17,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   useColorScheme,
   View,
 } from 'react-native';
@@ -63,7 +64,28 @@ function mapLoginError(error: unknown): string {
   return 'Falha na autenticação. Tente novamente.';
 }
 
-export default function LoginScreen() {
+export default function LoginScreen() { 
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstall, setShowInstall] = useState(Platform.OS === 'web');
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstall(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log('User response to the install prompt:', outcome);
+    setShowInstall(false);
+    setDeferredPrompt(null);
+  };
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const theme = isDark ? Colors.dark : Colors.light;
@@ -158,6 +180,27 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {/* ═══ PWA INSTALL BUTTON (top-right, web only) ═══ */}
+        {showInstall && Platform.OS === 'web' && (
+          <TouchableOpacity
+            onPress={handleInstall}
+            style={[
+              styles.installButton,
+              {
+                top: insets.top + Spacing.sm,
+                backgroundColor: isDark ? Colors.dark.surfaceElevated : Colors.light.surface,
+                borderColor: isDark ? Colors.dark.border : Colors.light.border,
+              },
+            ]}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Instalar aplicativo"
+          >
+            <MaterialIcons name="get-app" size={20} color={Colors.primary} />
+            <Text style={[styles.installButtonText, { color: Colors.primary }]}>Instalar</Text>
+          </TouchableOpacity>
+        )}
+
         {/* ═══ BRANDED HEADER — Identidade visual Inácio ═══ */}
         <View style={styles.brandHeader}>
           {/* Foto do candidato — destaque grande */}
@@ -298,6 +341,7 @@ export default function LoginScreen() {
               <Text style={styles.buttonText}>Entrar</Text>
             )}
           </Pressable>
+
 
           {/* FORGOT PASSWORD LINK */}
           <Pressable
@@ -550,4 +594,23 @@ const styles = StyleSheet.create({
   },
 
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: Spacing.xl },
+
+  /* ═══ PWA INSTALL ═══ */
+  installButton: {
+    position: 'absolute',
+    right: Spacing.base,
+    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.pill,
+    borderWidth: 1,
+    ...Shadows.sm,
+  },
+  installButtonText: {
+    ...Typography.caption1,
+    fontWeight: '600',
+  },
 });
