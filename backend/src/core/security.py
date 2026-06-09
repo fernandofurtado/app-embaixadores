@@ -64,7 +64,17 @@ def _fetch_jwks() -> dict:
 def _verify_token(token: str) -> dict:
     """
     Verify a JWT token using Supabase JWKS (ES256) or fallback to HS256.
+    In local auth mode, always use HS256 with api_secret_key.
     """
+    # Local auth mode: always HS256 with local secret
+    if settings.auth_mode == "local":
+        return jwt.decode(
+            token,
+            settings.api_secret_key,
+            algorithms=["HS256"],
+            options={"verify_aud": False},
+        )
+
     # Try ES256 with JWKS first
     jwks = _fetch_jwks()
     if jwks.get("keys"):

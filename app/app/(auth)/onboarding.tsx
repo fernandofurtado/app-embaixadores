@@ -112,8 +112,9 @@ export default function OnboardingScreen() {
     }
   };
 
-  const handleSkip = () => {
-    handleComplete();
+  const handleSkip = async () => {
+    await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
+    router.replace('/(auth)/login');
   };
 
   const onScroll = Animated.event(

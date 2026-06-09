@@ -1,32 +1,37 @@
 """
 ═══════════════════════════════════════════════════════════════
   Auth Module — Service
-  Handles registration, login, and token management
-  via Supabase Auth + local profile creation.
+  Handles registration, login, and token management.
+  Supports two modes:
+    - "supabase": production (Supabase Auth)
+    - "local": development (bcrypt + JWT with local Postgres)
 ═══════════════════════════════════════════════════════════════
 """
 
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.supabase import get_supabase_admin
+from src.core.config import settings
 from src.modules.auth.schemas import LoginRequest, RegisterRequest
 from src.modules.users.models import Consent, Level, Profile
 from src.shared.exceptions import BadRequestException, ConflictException, UnauthorizedException
 
 
 class AuthService:
-    """Authentication business logic using Supabase Auth."""
+    """Authentication business logic — supports Supabase and local auth modes."""
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.supabase = get_supabase_admin()
+        self.is_local = settings.auth_mode == "local"
+        if not self.is_local:
+            from src.core.supabase import get_supabase_admin
+            self.supabase = get_supabase_admin()
 
     async def register(self, data: RegisterRequest) -> dict:
-        """Register a new user via Supabase Auth and create a local profile."""
+        """Register a new user."""
 
         # PRD §8.1: data_processing consent is mandatory
         consent_types = {c.consent_type for c in data.consents}
@@ -40,7 +45,41 @@ class AuthService:
         if result.scalar_one_or_none():
             raise ConflictException("E-mail já cadastrado")
 
-        # Create user in Supabase Auth
+        if self.is_local:
+            return await self._register_local(data)
+        return await self._register_supabase(data)
+
+    async def _register_local(self, data: RegisterRequest) -> dict:
+        """Register using local Postgres auth (bcrypt + JWT)."""
+        from src.core.local_auth import hash_password, create_access_token, create_refresh_token
+
+        user_id = uuid.uuid4()
+
+        # Create user in auth.users (local Postgres)
+        hashed = hash_password(data.password)
+        await self.db.execute(
+            text(
+                "INSERT INTO auth.users (id, email, encrypted_password) "
+                "VALUES (:id, :email, :password)"
+            ),
+            {"id": str(user_id), "email": data.email, "password": hashed},
+        )
+
+        # Create local profile
+        profile = await self._create_profile(user_id, data)
+
+        access_token = create_access_token(str(user_id))
+        refresh_token = create_refresh_token(str(user_id))
+
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "user_id": str(profile.id),
+        }
+
+    async def _register_supabase(self, data: RegisterRequest) -> dict:
+        """Register using Supabase Auth."""
         try:
             auth_response = self.supabase.auth.sign_up({
                 "email": data.email,
@@ -57,6 +96,30 @@ class AuthService:
         if not auth_response.user:
             raise BadRequestException("Erro ao criar conta no sistema de autenticação")
 
+        user_id = uuid.UUID(auth_response.user.id)
+        profile = await self._create_profile(user_id, data)
+
+        # If Supabase email-confirmation is enabled, session may be None.
+        session = auth_response.session
+        if not session or not session.access_token:
+            try:
+                login_response = self.supabase.auth.sign_in_with_password({
+                    "email": data.email,
+                    "password": data.password,
+                })
+                session = login_response.session
+            except Exception:
+                pass
+
+        return {
+            "access_token": session.access_token if session else "",
+            "refresh_token": session.refresh_token if session else "",
+            "token_type": "bearer",
+            "user_id": str(profile.id),
+        }
+
+    async def _create_profile(self, user_id: uuid.UUID, data: RegisterRequest) -> Profile:
+        """Create a local Profile + consents (shared by both auth modes)."""
         # Get the initial level (Apoiador)
         level_result = await self.db.execute(
             select(Level).where(Level.order_index == 1)
@@ -73,9 +136,8 @@ class AuthService:
             if referrer:
                 referred_by_id = referrer.id
 
-        # Create local profile
         profile = Profile(
-            id=uuid.UUID(auth_response.user.id),
+            id=user_id,
             full_name=data.full_name,
             email=data.email,
             phone=data.phone,
@@ -89,7 +151,7 @@ class AuthService:
         self.db.add(profile)
         await self.db.flush()
 
-        # PRD §8.1: Record granular consents with version and timestamp
+        # PRD §8.1: Record granular consents
         for consent_input in data.consents:
             consent = Consent(
                 user_id=profile.id,
@@ -115,29 +177,36 @@ class AuthService:
                 invitation.invitee_id = profile.id
 
         await self.db.flush()
-
-        # If Supabase email-confirmation is enabled, session may be None.
-        # Auto-login to get a real session with tokens.
-        session = auth_response.session
-        if not session or not session.access_token:
-            try:
-                login_response = self.supabase.auth.sign_in_with_password({
-                    "email": data.email,
-                    "password": data.password,
-                })
-                session = login_response.session
-            except Exception:
-                pass  # If auto-login fails, we still created the account
-
-        return {
-            "access_token": session.access_token if session else "",
-            "refresh_token": session.refresh_token if session else "",
-            "token_type": "bearer",
-            "user_id": str(profile.id),
-        }
+        return profile
 
     async def login(self, data: LoginRequest) -> dict:
-        """Authenticate user via Supabase Auth."""
+        """Authenticate user."""
+        if self.is_local:
+            return await self._login_local(data)
+        return await self._login_supabase(data)
+
+    async def _login_local(self, data: LoginRequest) -> dict:
+        """Login using local Postgres auth."""
+        from src.core.local_auth import verify_password, create_access_token, create_refresh_token
+
+        result = await self.db.execute(
+            text("SELECT id, encrypted_password FROM auth.users WHERE email = :email"),
+            {"email": data.email},
+        )
+        row = result.first()
+        if not row or not verify_password(data.password, row.encrypted_password):
+            raise UnauthorizedException("Credenciais inválidas")
+
+        user_id = str(row.id)
+        return {
+            "access_token": create_access_token(user_id),
+            "refresh_token": create_refresh_token(user_id),
+            "token_type": "bearer",
+            "user_id": user_id,
+        }
+
+    async def _login_supabase(self, data: LoginRequest) -> dict:
+        """Login using Supabase Auth."""
         try:
             auth_response = self.supabase.auth.sign_in_with_password({
                 "email": data.email,
@@ -158,6 +227,27 @@ class AuthService:
 
     async def refresh_token(self, refresh_token: str) -> dict:
         """Refresh an access token."""
+        if self.is_local:
+            from src.core.local_auth import create_access_token, create_refresh_token
+            from jose import jwt, JWTError
+            try:
+                payload = jwt.decode(
+                    refresh_token, settings.api_secret_key, algorithms=["HS256"],
+                    options={"verify_aud": False},
+                )
+                user_id = payload.get("sub")
+                if not user_id:
+                    raise UnauthorizedException("Token inválido")
+            except JWTError as e:
+                raise UnauthorizedException(f"Token de atualização inválido: {e!s}") from e
+
+            return {
+                "access_token": create_access_token(user_id),
+                "refresh_token": create_refresh_token(user_id),
+                "token_type": "bearer",
+                "user_id": user_id,
+            }
+
         try:
             auth_response = self.supabase.auth.refresh_session(refresh_token)
         except Exception as e:
@@ -175,10 +265,11 @@ class AuthService:
 
     async def logout(self, access_token: str) -> dict:
         """Sign out the user."""
-        try:
-            self.supabase.auth.sign_out(access_token)
-        except Exception:
-            pass  # Best-effort logout
+        if not self.is_local:
+            try:
+                self.supabase.auth.sign_out(access_token)
+            except Exception:
+                pass  # Best-effort logout
         return {"message": "Logout realizado com sucesso"}
 
     async def social_login(self, provider: str, id_token: str) -> dict:
